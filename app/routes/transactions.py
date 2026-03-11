@@ -51,3 +51,19 @@ def get_summary(db: Session = Depends(get_db)):
         "total_expense": total_expense,
         "balance": balance
     }
+
+@router.delete("/transactions/{transaction_id}")
+def delete_transaction(
+    transaction_id: int,
+    db: Session = Depends(get_db)
+):
+
+    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+
+    if not transaction:
+        return {"error": "Transaction not found"}
+
+    db.delete(transaction)
+    db.commit()
+
+    return {"message": "Transaction deleted"}
