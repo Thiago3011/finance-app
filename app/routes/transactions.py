@@ -1,9 +1,10 @@
 from typing import List
+from collections import defaultdict
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.transaction import Transaction
-from app.schemas.transaction import TransactionCreate, TransactionResponse, TransactionSummary
+from app.schemas.transaction import TransactionCreate, TransactionResponse, TransactionSummary, MonthlySummary
 
 router = APIRouter()
 
@@ -67,3 +68,31 @@ def delete_transaction(
     db.commit()
 
     return {"message": "Transaction deleted"}
+
+@router.get("/transactions/monthly", response_model=list[MonthlySummary])
+def monthly_summary(db: Session = Depends(get_db)):
+
+    transactions = db.query(Transaction).all()
+
+    monthly_data = defaultdict(lambda: {"income": 0, "expense": 0})
+
+    for t in transactions:
+
+        month = t.date.strftime("%Y-%m")
+
+        if t.type == "income":
+            monthly_data[month]["income"] += t.amount
+        else:
+            monthly_data[month]["expense"] += t.amount
+
+    result = []
+
+    for month, data in monthly_data.items():
+
+        result.append({
+            "month": month,
+            "income": data["income"],
+            "expense": data["expense"]
+        })
+
+    return result

@@ -21,3 +21,8 @@ class TransactionSummary(BaseModel):
     total_income: float
     total_expense: float
     balance: float
+
+class MonthlySummary(BaseModel):
+    month: str
+    income: float
+    expense: float
