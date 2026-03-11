@@ -1,34 +1,49 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useEffect, useState } from "react"
+import { getTransactions, getSummary } from "./api/api"
 
 function App() {
-  const [count, setCount] = useState(0)
+
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [summary, setSummary] = useState<any>(null)
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  async function loadData() {
+    const t = await getTransactions()
+    const s = await getSummary()
+
+    setTransactions(t)
+    setSummary(s)
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <div style={{ padding: 40, fontFamily: "Arial" }}>
+
+      <h1>Finance Dashboard</h1>
+
+      {summary && (
+        <div>
+          <h2>Resumo</h2>
+
+          <p>Receitas: {summary.total_income}</p>
+          <p>Despesas: {summary.total_expense}</p>
+          <p>Saldo: {summary.balance}</p>
+        </div>
+      )}
+
+      <h2>Transações</h2>
+
+      <ul>
+        {transactions.map((t) => (
+          <li key={t.id}>
+            {t.description} — {t.amount}
+          </li>
+        ))}
+      </ul>
+
+    </div>
   )
 }
 
