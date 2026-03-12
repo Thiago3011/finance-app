@@ -21,3 +21,9 @@ export async function createTransaction(data:any) {
 
   return res.json()
 }
+
+export async function deleteTransaction(id:number) {
+  await fetch(`http://127.0.0.1:8000/transactions/${id}`, {
+    method: "DELETE"
+  })
+}

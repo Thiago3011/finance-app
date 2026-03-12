@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { getTransactions, getSummary, createTransaction } from "./api/api"
+import { getTransactions, getSummary, createTransaction, deleteTransaction } from "./api/api"
 
 function App() {
 
@@ -22,68 +22,93 @@ function App() {
     setSummary(s)
   }
 
-  async function handleSubmit(e:any) {
+  async function handleDelete(id: number) {
+    await deleteTransaction(id)
+    loadData()
+  }
+
+  function formatCurrency(value: number) {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL"
+    }).format(value)
+  }
+
+  async function handleSubmit(e: any) {
     e.preventDefault()
 
     await createTransaction({
       description,
-      amount: Number(amount),
+      amount: parseFloat(amount),
       type,
-      date: new Date().toISOString().slice(0,10)
+      date: new Date().toISOString().slice(0, 10)
     })
 
     setDescription("")
     setAmount("")
+    setType("expense")
 
     loadData()
   }
 
   return (
-    <div style={{padding:40,fontFamily:"Arial",maxWidth:800}}>
+    <div style={{ padding: 40, fontFamily: "Arial", maxWidth: 900 }}>
 
       <h1>Finance Dashboard</h1>
 
       {summary && (
-        <div style={{display:"flex",gap:20,marginBottom:30}}>
+        <div style={{ display: "flex", gap: 20, marginBottom: 30 }}>
+
           <div>
             <h3>Receitas</h3>
-            <p>{summary.total_income}</p>
+            <p style={{ color: "green", fontWeight: "bold" }}>
+              {formatCurrency(summary.total_income)}
+            </p>
           </div>
 
           <div>
             <h3>Despesas</h3>
-            <p>{summary.total_expense}</p>
+            <p style={{ color: "red", fontWeight: "bold" }}>
+              {formatCurrency(summary.total_expense)}
+            </p>
           </div>
 
           <div>
             <h3>Saldo</h3>
-            <p>{summary.balance}</p>
+            <p style={{ fontWeight: "bold" }}>
+              {formatCurrency(summary.balance)}
+            </p>
           </div>
+
         </div>
       )}
 
       <h2>Nova transação</h2>
 
-      <form onSubmit={handleSubmit} style={{marginBottom:30}}>
+      <form onSubmit={handleSubmit} style={{ marginBottom: 30 }}>
 
         <input
-          placeholder="descrição"
+          type="text"
+          placeholder="Descrição"
           value={description}
-          onChange={(e)=>setDescription(e.target.value)}
+          onChange={(e) => setDescription(e.target.value)}
         />
 
         <input
-          placeholder="valor"
+          type="number"
+          placeholder="Valor"
           value={amount}
-          onChange={(e)=>setAmount(e.target.value)}
+          onChange={(e) => setAmount(e.target.value)}
         />
 
-        <select value={type} onChange={(e)=>setType(e.target.value)}>
+        <select value={type} onChange={(e) => setType(e.target.value)}>
           <option value="expense">Despesa</option>
           <option value="income">Receita</option>
         </select>
 
-        <button type="submit">Adicionar</button>
+        <button type="submit">
+          Adicionar
+        </button>
 
       </form>
 
@@ -95,17 +120,40 @@ function App() {
           <tr>
             <th>Descrição</th>
             <th>Valor</th>
+            <th>Ação</th>
           </tr>
         </thead>
 
         <tbody>
 
-          {transactions.map((t)=>(
-            <tr key={t.id}>
-              <td>{t.description}</td>
-              <td>{t.amount}</td>
-            </tr>
-          ))}
+          {transactions.map((t) => {
+
+            const isExpense = t.type === "expense"
+
+            return (
+              <tr key={t.id}>
+
+                <td>
+                  {t.description}
+                </td>
+
+                <td style={{
+                  color: isExpense ? "red" : "green",
+                  fontWeight: "bold"
+                }}>
+                  {formatCurrency(t.amount)}
+                </td>
+
+                <td>
+                  <button onClick={() => handleDelete(t.id)}>
+                    excluir
+                  </button>
+                </td>
+
+              </tr>
+            )
+
+          })}
 
         </tbody>
 
