@@ -1,11 +1,21 @@
 const API_URL = "http://127.0.0.1:8000"
 
-export async function getTransactions(type?: string) {
+export async function getTransactions(
+  type?: string,
+  startDate?: string,
+  endDate?: string
+) {
 
   let url = `${API_URL}/transactions`
 
-  if (type) {
-    url += `?type=${type}`
+  const params = new URLSearchParams()
+
+  if (type) params.append("type", type)
+  if (startDate) params.append("start_date", startDate)
+  if (endDate) params.append("end_date", endDate)
+
+  if (params.toString()) {
+    url += `?${params.toString()}`
   }
 
   const res = await fetch(url)
@@ -43,5 +53,15 @@ export async function getCategories() {
 
 export async function getCategorySummary() {
   const res = await fetch(`${API_URL}/transactions/by-category`)
+  return res.json()
+}
+
+export async function getMonthlySummary() {
+  const res = await fetch(`${API_URL}/monthly-summary`)
+  return res.json()
+}
+
+export async function getAccounts() {
+  const res = await fetch(`${API_URL}/accounts`)
   return res.json()
 }
