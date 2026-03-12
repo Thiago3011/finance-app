@@ -9,3 +9,15 @@ export async function getSummary() {
   const res = await fetch(`${API_URL}/transactions/summary`)
   return res.json()
 }
+
+export async function createTransaction(data:any) {
+  const res = await fetch(`${API_URL}/transactions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(data)
+  })
+
+  return res.json()
+}
