@@ -1,7 +1,15 @@
 const API_URL = "http://127.0.0.1:8000"
 
-export async function getTransactions() {
-  const res = await fetch(`${API_URL}/transactions`)
+export async function getTransactions(type?: string) {
+
+  let url = `${API_URL}/transactions`
+
+  if (type) {
+    url += `?type=${type}`
+  }
+
+  const res = await fetch(url)
+
   return res.json()
 }
 
@@ -30,5 +38,10 @@ export async function deleteTransaction(id: number) {
 
 export async function getCategories() {
   const res = await fetch(`${API_URL}/categories`)
+  return res.json()
+}
+
+export async function getCategorySummary() {
+  const res = await fetch(`${API_URL}/transactions/by-category`)
   return res.json()
 }
