@@ -1,21 +1,31 @@
-from typing import List
+from typing import List, Optional
 from collections import defaultdict
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
+
 from app.database import get_db
 from app.models.transaction import Transaction
-from app.schemas.transaction import TransactionCreate, TransactionResponse, TransactionSummary, MonthlySummary
+from app.models.category import Category
+from app.schemas.transaction import (
+    TransactionCreate,
+    TransactionResponse,
+    TransactionSummary,
+    MonthlySummary
+)
 
 router = APIRouter()
 
-@router.post("/transactions")
+
+@router.post("/transactions", response_model=TransactionResponse)
 def create_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
-    
+
     db_transaction = Transaction(
         type=transaction.type,
         amount=transaction.amount,
         description=transaction.description,
-        date=transaction.date
+        date=transaction.date,
+        category_id=transaction.category_id
     )
 
     db.add(db_transaction)
@@ -24,12 +34,22 @@ def create_transaction(transaction: TransactionCreate, db: Session = Depends(get
 
     return db_transaction
 
-@router.get("/transactions", response_model=List[TransactionResponse])
-def list_transactions(db: Session = Depends(get_db)):
 
-    transactions = db.query(Transaction).all()
+@router.get("/transactions", response_model=List[TransactionResponse])
+def list_transactions(
+    db: Session = Depends(get_db),
+    type: Optional[str] = Query(None)
+):
+
+    query = db.query(Transaction)
+
+    if type:
+        query = query.filter(Transaction.type == type)
+
+    transactions = query.all()
 
     return transactions
+
 
 @router.get("/transactions/summary", response_model=TransactionSummary)
 def get_summary(db: Session = Depends(get_db)):
@@ -53,23 +73,28 @@ def get_summary(db: Session = Depends(get_db)):
         "balance": balance
     }
 
-@router.delete("/transactions/{transaction_id}")
-def delete_transaction(
-    transaction_id: int,
-    db: Session = Depends(get_db)
-):
 
-    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+@router.get("/transactions/by-category")
+def summary_by_category(db: Session = Depends(get_db)):
 
-    if not transaction:
-        return {"error": "Transaction not found"}
+    results = (
+        db.query(
+            Category.name,
+            func.sum(Transaction.amount).label("total")
+        )
+        .join(Transaction, Transaction.category_id == Category.id)
+        .filter(Transaction.type == "expense")
+        .group_by(Category.name)
+        .all()
+    )
 
-    db.delete(transaction)
-    db.commit()
+    return [
+        {"category": name, "total": total}
+        for name, total in results
+    ]
 
-    return {"message": "Transaction deleted"}
 
-@router.get("/transactions/monthly", response_model=list[MonthlySummary])
+@router.get("/transactions/monthly", response_model=List[MonthlySummary])
 def monthly_summary(db: Session = Depends(get_db)):
 
     transactions = db.query(Transaction).all()
@@ -96,3 +121,17 @@ def monthly_summary(db: Session = Depends(get_db)):
         })
 
     return result
+
+
+@router.delete("/transactions/{transaction_id}")
+def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
+
+    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+
+    if not transaction:
+        return {"error": "Transaction not found"}
+
+    db.delete(transaction)
+    db.commit()
+
+    return {"message": "Transaction deleted"}
