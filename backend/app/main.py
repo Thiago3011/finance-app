@@ -20,28 +20,28 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 def seed_categories():
-    db = SessionLocal()
-    try:
-        has_any = db.query(Category).first() is not None
-        if has_any:
-            return
 
-        defaults = [
-            "Alimenta\u00e7\u00e3o",
-            "Moradia",
-            "Transporte",
-            "Sa\u00fade",
-            "Educa\u00e7\u00e3o",
-            "Lazer",
-            "Sal\u00e1rio",
-            "Investimentos",
-            "Outros",
-        ]
-        for name in defaults:
-            db.add(Category(name=name))
-        db.commit()
-    finally:
+    db = SessionLocal()
+
+    if db.query(Category).count() > 0:
         db.close()
+        return
+
+    categories = [
+
+        Category(name="Salário", type="income"),
+        Category(name="Freelance", type="income"),
+
+        Category(name="Alimentação", type="expense"),
+        Category(name="Aluguel", type="expense"),
+        Category(name="Transporte", type="expense"),
+        Category(name="Lazer", type="expense"),
+
+    ]
+
+    db.add_all(categories)
+    db.commit()
+    db.close()
 
 seed_categories()
 

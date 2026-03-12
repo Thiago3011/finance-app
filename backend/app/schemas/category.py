@@ -1,15 +1,14 @@
 from pydantic import BaseModel
+from typing import Literal
 
-class CategoryBase(BaseModel):
+class CategoryCreate(BaseModel):
     name: str
+    type: Literal["income", "expense"]
 
-
-class CategoryCreate(CategoryBase):
-    pass
-
-
-class Category(CategoryBase):
+class CategoryResponse(BaseModel):
     id: int
+    name: str
+    type: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
