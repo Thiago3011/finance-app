@@ -10,7 +10,7 @@ export async function getSummary() {
   return res.json()
 }
 
-export async function createTransaction(data:any) {
+export async function createTransaction(data: any) {
   const res = await fetch(`${API_URL}/transactions`, {
     method: "POST",
     headers: {
@@ -22,8 +22,13 @@ export async function createTransaction(data:any) {
   return res.json()
 }
 
-export async function deleteTransaction(id:number) {
-  await fetch(`http://127.0.0.1:8000/transactions/${id}`, {
+export async function deleteTransaction(id: number) {
+  await fetch(`${API_URL}/transactions/${id}`, {
     method: "DELETE"
   })
+}
+
+export async function getCategories() {
+  const res = await fetch(`${API_URL}/categories`)
+  return res.json()
 }

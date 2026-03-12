@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { getTransactions, getSummary, createTransaction, deleteTransaction } from "./api/api"
+import { getTransactions, getSummary, createTransaction, deleteTransaction, getCategories } from "./api/api"
 
 function App() {
 
@@ -10,6 +10,9 @@ function App() {
   const [amount, setAmount] = useState("")
   const [type, setType] = useState("expense")
 
+  const [categories, setCategories] = useState<any[]>([])
+  const [categoryId, setCategoryId] = useState("")
+
   useEffect(() => {
     loadData()
   }, [])
@@ -17,9 +20,11 @@ function App() {
   async function loadData() {
     const t = await getTransactions()
     const s = await getSummary()
+    const c = await getCategories()
 
     setTransactions(t)
     setSummary(s)
+    setCategories(c)
   }
 
   async function handleDelete(id: number) {
@@ -41,14 +46,21 @@ function App() {
       description,
       amount: parseFloat(amount),
       type,
+      category_id: Number(categoryId),
       date: new Date().toISOString().slice(0, 10)
     })
 
     setDescription("")
     setAmount("")
     setType("expense")
+    setCategoryId("")
 
     loadData()
+  }
+
+  function getCategoryName(id: number) {
+    const category = categories.find(c => c.id === id)
+    return category ? category.name : "-"
   }
 
   return (
@@ -106,6 +118,19 @@ function App() {
           <option value="income">Receita</option>
         </select>
 
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+        >
+          <option value="">Categoria</option>
+
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+
         <button type="submit">
           Adicionar
         </button>
@@ -119,6 +144,7 @@ function App() {
         <thead>
           <tr>
             <th>Descrição</th>
+            <th>Categoria</th>
             <th>Valor</th>
             <th>Ação</th>
           </tr>
@@ -135,6 +161,10 @@ function App() {
 
                 <td>
                   {t.description}
+                </td>
+
+                <td>
+                  {getCategoryName(t.category_id)}
                 </td>
 
                 <td style={{
