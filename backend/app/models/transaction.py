@@ -14,3 +14,4 @@ class Transaction(Base):
 
     category_id = Column(Integer, ForeignKey("categories.id"))
     category = relationship("Category")
+    account_id = Column(Integer, ForeignKey("accounts.id"))

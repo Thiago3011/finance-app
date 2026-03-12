@@ -4,6 +4,7 @@ from app.models.category import Category
 from app.models import transaction
 from app.routes.transactions import router as transactions_router
 from app.routes.categories import router as categories_router
+from app.routes.accounts import router as accounts_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -11,7 +12,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,6 +48,7 @@ seed_categories()
 
 app.include_router(transactions_router)
 app.include_router(categories_router)
+app.include_router(accounts_router)
 
 @app.get("/")
 def root():

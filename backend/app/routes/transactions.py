@@ -1,5 +1,7 @@
 from typing import List, Optional
 from collections import defaultdict
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -17,6 +19,9 @@ from app.schemas.transaction import (
 router = APIRouter()
 
 
+# -----------------------------
+# CREATE TRANSACTION
+# -----------------------------
 @router.post("/transactions", response_model=TransactionResponse)
 def create_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
 
@@ -25,7 +30,8 @@ def create_transaction(transaction: TransactionCreate, db: Session = Depends(get
         amount=transaction.amount,
         description=transaction.description,
         date=transaction.date,
-        category_id=transaction.category_id
+        category_id=transaction.category_id,
+        account_id=transaction.account_id
     )
 
     db.add(db_transaction)
@@ -35,10 +41,15 @@ def create_transaction(transaction: TransactionCreate, db: Session = Depends(get
     return db_transaction
 
 
+# -----------------------------
+# LIST TRANSACTIONS (with filters)
+# -----------------------------
 @router.get("/transactions", response_model=List[TransactionResponse])
 def list_transactions(
     db: Session = Depends(get_db),
-    type: Optional[str] = Query(None)
+    type: Optional[str] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None)
 ):
 
     query = db.query(Transaction)
@@ -46,11 +57,18 @@ def list_transactions(
     if type:
         query = query.filter(Transaction.type == type)
 
-    transactions = query.all()
+    if start_date:
+        query = query.filter(Transaction.date >= start_date)
 
-    return transactions
+    if end_date:
+        query = query.filter(Transaction.date <= end_date)
+
+    return query.all()
 
 
+# -----------------------------
+# SUMMARY
+# -----------------------------
 @router.get("/transactions/summary", response_model=TransactionSummary)
 def get_summary(db: Session = Depends(get_db)):
 
@@ -74,6 +92,9 @@ def get_summary(db: Session = Depends(get_db)):
     }
 
 
+# -----------------------------
+# CATEGORY SUMMARY
+# -----------------------------
 @router.get("/transactions/by-category")
 def summary_by_category(db: Session = Depends(get_db)):
 
@@ -94,6 +115,9 @@ def summary_by_category(db: Session = Depends(get_db)):
     ]
 
 
+# -----------------------------
+# MONTHLY SUMMARY (python version)
+# -----------------------------
 @router.get("/transactions/monthly", response_model=List[MonthlySummary])
 def monthly_summary(db: Session = Depends(get_db)):
 
@@ -123,6 +147,9 @@ def monthly_summary(db: Session = Depends(get_db)):
     return result
 
 
+# -----------------------------
+# DELETE
+# -----------------------------
 @router.delete("/transactions/{transaction_id}")
 def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
 
@@ -135,3 +162,50 @@ def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Transaction deleted"}
+
+
+# -----------------------------
+# MONTHLY SUMMARY (SQL optimized)
+# -----------------------------
+@router.get("/monthly-summary")
+def get_monthly_summary(db: Session = Depends(get_db)):
+
+    results = (
+        db.query(
+            func.strftime("%Y-%m", Transaction.date).label("month"),
+            Category.type,
+            func.sum(Transaction.amount).label("total")
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .group_by("month", Category.type)
+        .order_by("month")
+        .all()
+    )
+
+    summary = {}
+
+    for month, type_, total in results:
+
+        if month not in summary:
+            summary[month] = {
+                "month": month,
+                "income": 0,
+                "expense": 0
+            }
+
+        summary[month][type_] = total
+
+    response = []
+
+    for month in summary:
+        income = summary[month]["income"]
+        expense = summary[month]["expense"]
+
+        response.append({
+            "month": month,
+            "income": income,
+            "expense": expense,
+            "balance": income - expense
+        })
+
+    return response

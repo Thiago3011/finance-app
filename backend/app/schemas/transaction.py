@@ -8,7 +8,7 @@ class TransactionBase(BaseModel):
     description: str
     date: date
     category_id: int | None = None
-
+    account_id: int | None = None
 
 class TransactionCreate(TransactionBase):
     pass
