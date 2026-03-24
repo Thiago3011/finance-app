@@ -5,21 +5,13 @@ export async function getTransactions(
   startDate?: string,
   endDate?: string
 ) {
-
   let url = `${API_URL}/transactions`
-
   const params = new URLSearchParams()
-
   if (type) params.append("type", type)
   if (startDate) params.append("start_date", startDate)
   if (endDate) params.append("end_date", endDate)
-
-  if (params.toString()) {
-    url += `?${params.toString()}`
-  }
-
+  if (params.toString()) url += `?${params.toString()}`
   const res = await fetch(url)
-
   return res.json()
 }
 
@@ -31,19 +23,14 @@ export async function getSummary() {
 export async function createTransaction(data: any) {
   const res = await fetch(`${API_URL}/transactions`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data)
   })
-
   return res.json()
 }
 
 export async function deleteTransaction(id: number) {
-  await fetch(`${API_URL}/transactions/${id}`, {
-    method: "DELETE"
-  })
+  await fetch(`${API_URL}/transactions/${id}`, { method: "DELETE" })
 }
 
 export async function getCategories() {
@@ -63,5 +50,28 @@ export async function getMonthlySummary() {
 
 export async function getAccounts() {
   const res = await fetch(`${API_URL}/accounts`)
+  return res.json()
+}
+
+export async function createInstallment(data: any) {
+  const res = await fetch(`${API_URL}/installments/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  })
+  return res.json()
+}
+
+export async function getInstallments() {
+  const res = await fetch(`${API_URL}/installments/`)
+  return res.json()
+}
+
+export async function markTransactionPaid(id: number, paid: boolean) {
+  const res = await fetch(`${API_URL}/transactions/${id}/paid`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ paid })
+  })
   return res.json()
 }

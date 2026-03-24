@@ -5,6 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from pydantic import BaseModel as PydanticBase
 
 from app.database import get_db
 from app.models.transaction import Transaction
@@ -68,6 +69,8 @@ def list_transactions(
 
 # -----------------------------
 # SUMMARY
+# Parcelas só entram no saldo se estiverem pagas (paid=True)
+# Receitas sempre contam
 # -----------------------------
 @router.get("/transactions/summary", response_model=TransactionSummary)
 def get_summary(db: Session = Depends(get_db)):
@@ -79,9 +82,16 @@ def get_summary(db: Session = Depends(get_db)):
 
     for t in transactions:
         if t.type == "income":
+            # Receitas sempre contam
             total_income += t.amount
         elif t.type == "expense":
-            total_expense += t.amount
+            # Despesas de parcelamento só contam se pagas
+            if t.installment_id is not None:
+                if t.paid:
+                    total_expense += t.amount
+            else:
+                # Despesas normais sempre contam
+                total_expense += t.amount
 
     balance = total_income - total_expense
 
@@ -209,3 +219,24 @@ def get_monthly_summary(db: Session = Depends(get_db)):
         })
 
     return response
+
+
+# -----------------------------
+# MARCAR COMO PAGO / NÃO PAGO
+# -----------------------------
+class PaidUpdate(PydanticBase):
+    paid: bool
+
+@router.patch("/transactions/{transaction_id}/paid")
+def update_paid(transaction_id: int, body: PaidUpdate, db: Session = Depends(get_db)):
+
+    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+
+    if not transaction:
+        return {"error": "Transaction not found"}
+
+    transaction.paid = body.paid
+    db.commit()
+    db.refresh(transaction)
+
+    return {"id": transaction.id, "paid": transaction.paid}

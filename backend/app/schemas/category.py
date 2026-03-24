@@ -1,9 +1,8 @@
 from pydantic import BaseModel
-from typing import Literal
 
 class CategoryCreate(BaseModel):
     name: str
-    type: Literal["income", "expense"]
+    type: str  # "income" ou "expense"
 
 class CategoryResponse(BaseModel):
     id: int
