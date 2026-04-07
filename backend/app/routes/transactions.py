@@ -1,5 +1,4 @@
 from typing import List, Optional
-from collections import defaultdict
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query
@@ -20,7 +19,6 @@ from app.schemas.transaction import (
 router = APIRouter()
 
 
-# CREATE — despesas normais já entram como pagas
 @router.post("/transactions", response_model=TransactionResponse)
 def create_transaction(transaction: TransactionCreate, db: Session = Depends(get_db)):
     db_transaction = Transaction(
@@ -38,7 +36,6 @@ def create_transaction(transaction: TransactionCreate, db: Session = Depends(get
     return db_transaction
 
 
-# LIST — com filtros de período, ano e mês
 @router.get("/transactions", response_model=List[TransactionResponse])
 def list_transactions(
     db: Session = Depends(get_db),
@@ -62,7 +59,6 @@ def list_transactions(
     return query.order_by(Transaction.date.desc()).all()
 
 
-# SUMMARY — parcelas só contam se pagas; normais sempre contam
 @router.get("/transactions/summary", response_model=TransactionSummary)
 def get_summary(
     db: Session = Depends(get_db),
@@ -84,7 +80,6 @@ def get_summary(
     transactions = query.all()
     total_income = 0
     total_expense = 0
-
     for t in transactions:
         if t.type == "income":
             total_income += t.amount
@@ -98,7 +93,6 @@ def get_summary(
     }
 
 
-# CATEGORY SUMMARY — com filtros
 @router.get("/transactions/by-category")
 def summary_by_category(
     db: Session = Depends(get_db),
@@ -125,7 +119,7 @@ def summary_by_category(
     return [{"category": name, "total": total} for name, total in results]
 
 
-# MONTHLY SUMMARY — com filtro de ano
+# 🔥 BUG CORRIGIDO: usa Transaction.type em vez de Category.type
 @router.get("/monthly-summary")
 def get_monthly_summary(
     db: Session = Depends(get_db),
@@ -133,20 +127,20 @@ def get_monthly_summary(
 ):
     query = db.query(
         func.strftime("%Y-%m", Transaction.date).label("month"),
-        Category.type,
+        Transaction.type,
         func.sum(Transaction.amount).label("total")
-    ).join(Category, Transaction.category_id == Category.id)
-
+    )
     if year:
         query = query.filter(func.strftime("%Y", Transaction.date) == str(year))
 
-    results = query.group_by("month", Category.type).order_by("month").all()
+    results = query.group_by("month", Transaction.type).order_by("month").all()
 
-    summary = {}
+    summary: dict = {}
     for month, type_, total in results:
         if month not in summary:
             summary[month] = {"month": month, "income": 0, "expense": 0}
-        summary[month][type_] = total
+        if type_ in ("income", "expense"):
+            summary[month][type_] = total
 
     response = []
     for m in summary:
@@ -156,7 +150,6 @@ def get_monthly_summary(
     return response
 
 
-# DELETE
 @router.delete("/transactions/{transaction_id}")
 def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
     transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
@@ -167,7 +160,6 @@ def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
     return {"message": "Transaction deleted"}
 
 
-# PATCH PAID — apenas para parcelas
 class PaidUpdate(PydanticBase):
     paid: bool
 
