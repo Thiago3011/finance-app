@@ -10,6 +10,7 @@ class InstallmentCreate(BaseModel):
     start_date: str
     category_id: int
     account_id: int
+    debt_type: str = "parcelamento"  # parcelamento | financiamento | emprestimo
 
 
 class InstallmentResponse(BaseModel):
@@ -17,7 +18,8 @@ class InstallmentResponse(BaseModel):
     description: str
     total_amount: float
     total_installments: int
-    created_at: datetime  # 👈 era "date", agora é "datetime"
+    created_at: datetime
+    debt_type: str
 
     class Config:
         from_attributes = True

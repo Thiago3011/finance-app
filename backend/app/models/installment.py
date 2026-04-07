@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, Float, String, DateTime
 from datetime import datetime
 from app.database import Base
 
+
 class Installment(Base):
     __tablename__ = "installments"
 
@@ -10,3 +11,6 @@ class Installment(Base):
     total_amount = Column(Float, nullable=False)
     total_installments = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Tipo: "parcelamento", "financiamento", "emprestimo"
+    debt_type = Column(String, default="parcelamento", nullable=False)
