@@ -9,6 +9,8 @@ from app.models.transaction import Transaction
 
 router = APIRouter(prefix="/installments", tags=["Installments"])
 
+DEBT_TYPES = ["parcelamento", "financiamento", "emprestimo"]
+
 
 @router.post("/", response_model=InstallmentResponse)
 def create(data: InstallmentCreate, db: Session = Depends(get_db)):
@@ -45,6 +47,7 @@ def installments_summary(db: Session = Depends(get_db)):
         result.append({
             "id": inst.id,
             "description": inst.description,
+            "debt_type": inst.debt_type,
             "total_amount": inst.total_amount,
             "total_installments": total,
             "paid_installments": pagas,
