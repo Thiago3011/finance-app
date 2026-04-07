@@ -6,10 +6,11 @@ import {
 import {
   getTransactions, getSummary, createTransaction, deleteTransaction,
   getCategories, getCategorySummary, getMonthlySummary, getAccounts,
-  createInstallment, markTransactionPaid, getInstallmentsSummary
+  createInstallment, markTransactionPaid, getInstallmentsSummary,
+  getRecurring, createRecurring, updateRecurring, deleteRecurring
 } from "./api/api"
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── helpers ─────────────────────────────────────────────────────────────
 function fmt(v: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v)
 }
@@ -20,47 +21,35 @@ function fmtDate(d: string) {
 }
 const MONTHS_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
 const COLORS = ["#7c6dfa","#fa6d8f","#6dfabc","#fad26d","#6db8fa","#fa8c6d","#c46dfa"]
+const ICON_OPTIONS = ["💡","🌊","📱","🌐","🏠","🚗","💊","📺","🎮","🎵","☕","🏋️","📚","✈️","🐾","🛡️","💳","🔑","📄","🏦"]
 
-// ─── styles ─────────────────────────────────────────────────────────────────
-const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&family=Bricolage+Grotesque:wght@700;800&display=swap');
-
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-
-:root{
-  --bg:#08080f;
-  --s1:#0f0f1a;
-  --s2:#17172a;
-  --s3:#1f1f35;
-  --b1:#ffffff0d;
-  --b2:#ffffff1a;
-  --b3:#ffffff28;
-  --acc:#7c6dfa;
-  --acc2:#fa6d8f;
-  --acc3:#6dfabc;
-  --text:#eeeef8;
-  --muted:#5a5a72;
-  --muted2:#8888a8;
-  --green:#4ade80;
-  --red:#f87171;
-  --yellow:#fbbf24;
-  --r:14px;
+const DEBT_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
+  parcelamento: { label: "Parcelamento",  icon: "💳", color: "#7c6dfa", bg: "rgba(124,109,250,.12)" },
+  financiamento:{ label: "Financiamento", icon: "🏦", color: "#fad26d", bg: "rgba(250,210,109,.12)" },
+  emprestimo:   { label: "Empréstimo",    icon: "🤝", color: "#fa6d8f", bg: "rgba(250,109,143,.12)" },
 }
 
+// ─── CSS ─────────────────────────────────────────────────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&family=Bricolage+Grotesque:wght@700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08080f;--s1:#0f0f1a;--s2:#17172a;--s3:#1f1f35;
+  --b1:#ffffff0d;--b2:#ffffff1a;--b3:#ffffff28;
+  --acc:#7c6dfa;--acc2:#fa6d8f;--acc3:#6dfabc;
+  --text:#eeeef8;--muted:#5a5a72;--muted2:#8888a8;
+  --green:#4ade80;--red:#f87171;--yellow:#fbbf24;--r:14px;
+}
 body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh}
 .app{max-width:1280px;margin:0 auto;padding:28px 24px}
 
 /* HEADER */
 .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px}
 .logo{font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:800;background:linear-gradient(130deg,var(--acc),var(--acc2) 60%,var(--acc3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.hdr-right{display:flex;align-items:center;gap:12px}
 
 /* PERIOD NAV */
 .period-nav{display:flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--b2);border-radius:40px;padding:5px 8px}
-.period-btn{background:none;border:none;color:var(--muted2);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:500;padding:5px 12px;border-radius:30px;transition:all .18s;white-space:nowrap}
-.period-btn:hover{color:var(--text)}
-.period-btn.active{background:var(--s3);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.35)}
-.period-arrow{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:16px;padding:4px 6px;border-radius:6px;transition:color .15s}
+.period-arrow{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:18px;padding:4px 8px;border-radius:6px;transition:color .15s;line-height:1}
 .period-arrow:hover{color:var(--text)}
 .period-label{font-size:14px;font-weight:600;min-width:80px;text-align:center;color:var(--text)}
 .view-toggle{display:flex;gap:2px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:3px}
@@ -69,24 +58,22 @@ body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans
 
 /* SUMMARY CARDS */
 .sum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px}
-.sum-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:22px 24px;position:relative;overflow:hidden;transition:border-color .2s,transform .2s;cursor:default}
+.sum-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:22px 24px;position:relative;overflow:hidden;transition:border-color .2s,transform .2s}
 .sum-card:hover{transform:translateY(-2px);border-color:var(--b2)}
 .sum-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0}
-.sum-card.inc::after{background:var(--green)}
-.sum-card.exp::after{background:var(--red)}
-.sum-card.bal::after{background:linear-gradient(90deg,var(--acc),var(--acc2))}
+.sum-card.inc::after{background:var(--green)}.sum-card.exp::after{background:var(--red)}.sum-card.bal::after{background:linear-gradient(90deg,var(--acc),var(--acc2))}
 .sc-label{font-size:11px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:.9px;margin-bottom:10px}
 .sc-value{font-family:'Bricolage Grotesque',sans-serif;font-size:30px;font-weight:700;line-height:1;letter-spacing:-1px}
-.sc-value.g{color:var(--green)} .sc-value.r{color:var(--red)} .sc-value.w{color:var(--text)}
+.sc-value.g{color:var(--green)}.sc-value.r{color:var(--red)}
 .sc-sub{font-size:12px;color:var(--muted2);margin-top:6px}
 .sc-icon{position:absolute;right:18px;top:18px;font-size:32px;opacity:.08}
 
-/* GRID LAYOUT */
+/* GRIDS */
 .grid2{display:grid;grid-template-columns:1fr 320px;gap:18px;margin-bottom:18px}
 .grid2b{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
 
 /* PANEL */
-.panel{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:22px;transition:border-color .2s}
+.panel{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:22px}
 .panel-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
 .panel-title{font-family:'Bricolage Grotesque',sans-serif;font-size:15px;font-weight:700}
 .panel-sub{font-size:12px;color:var(--muted2);margin-top:2px}
@@ -97,20 +84,28 @@ input:focus,select:focus{border-color:var(--acc)}
 input::placeholder{color:var(--muted)}
 select option{background:var(--s2)}
 .form-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.form-row > *{flex:1;min-width:110px}
+.form-row>*{flex:1;min-width:110px}
 
 /* BUTTONS */
 .btn{border:none;border-radius:10px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;padding:9px 18px;transition:all .2s;white-space:nowrap}
-.btn-p{background:var(--acc);color:#fff} .btn-p:hover{background:#6a5ce8;transform:translateY(-1px)}
-.btn-s{background:var(--s2);color:var(--text);border:1px solid var(--b2)} .btn-s:hover{border-color:var(--acc)}
-.btn-ghost{background:none;border:1px solid var(--b2);color:var(--muted2);border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;padding:5px 12px;font-family:'Plus Jakarta Sans',sans-serif;transition:all .15s} .btn-ghost:hover{border-color:var(--acc);color:var(--text)}
-.btn-del{background:none;border:none;cursor:pointer;color:var(--muted);font-size:15px;padding:4px 7px;border-radius:6px;transition:all .15s} .btn-del:hover{color:var(--red);background:rgba(248,113,113,.1)}
+.btn-p{background:var(--acc);color:#fff}.btn-p:hover{background:#6a5ce8;transform:translateY(-1px)}
+.btn-s{background:var(--s2);color:var(--text);border:1px solid var(--b2)}.btn-s:hover{border-color:var(--acc)}
+.btn-del{background:none;border:none;cursor:pointer;color:var(--muted);font-size:15px;padding:4px 7px;border-radius:6px;transition:all .15s}.btn-del:hover{color:var(--red);background:rgba(248,113,113,.1)}
+.btn-edit{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:4px 7px;border-radius:6px;transition:all .15s}.btn-edit:hover{color:var(--acc);background:rgba(124,109,250,.1)}
 
-/* COLLAPSIBLE TOGGLE */
+/* DEBT TYPE SELECTOR */
+.debt-type-btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.debt-type-btn{display:flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--b2);border-radius:10px;color:var(--muted2);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:500;padding:9px 16px;transition:all .2s;flex:1;justify-content:center}
+.debt-type-btn:hover{border-color:var(--b3);color:var(--text)}
+.debt-type-btn.sel-parcelamento{background:rgba(124,109,250,.15);border-color:#7c6dfa;color:#b0a8ff}
+.debt-type-btn.sel-financiamento{background:rgba(250,210,109,.15);border-color:#fad26d;color:#fad26d}
+.debt-type-btn.sel-emprestimo{background:rgba(250,109,143,.15);border-color:#fa6d8f;color:#fa6d8f}
+
+/* TOGGLE / COLLAPSE */
 .toggle-btn{display:inline-flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--b2);border-radius:10px;color:var(--muted2);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:500;padding:9px 16px;margin-bottom:10px;transition:all .2s}
 .toggle-btn.on{background:rgba(124,109,250,.12);border-color:var(--acc);color:var(--acc)}
 .toggle-btn:hover{border-color:var(--acc);color:var(--text)}
-.collapse-box{background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
+.collapse-box{background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);margin-bottom:12px}
 .collapse-box.on{border-color:rgba(124,109,250,.4)}
 .collapse-body{padding:18px;display:flex;flex-wrap:wrap;gap:8px}
 .hint{width:100%;background:rgba(124,109,250,.1);border:1px solid rgba(124,109,250,.2);border-radius:8px;color:#b0a8ff;font-size:12px;padding:9px 13px}
@@ -135,67 +130,151 @@ tr.paid-row{background:rgba(74,222,128,.03)}
 .b-inc{background:rgba(74,222,128,.12);color:var(--green)}
 .b-inst{background:rgba(124,109,250,.12);color:var(--acc);font-size:10px}
 .b-paid{background:rgba(74,222,128,.1);color:var(--green);font-size:10px}
+.b-over{background:rgba(248,113,113,.1);color:var(--red);font-size:10px}
+.b-up{background:rgba(74,222,128,.1);color:var(--green);font-size:10px}
 .badge-count{background:var(--s2);border:1px solid var(--b2);border-radius:20px;color:var(--muted2);font-size:11px;padding:2px 9px}
-
-/* PAID BUTTON */
 .paid-btn{background:none;border:none;cursor:pointer;font-size:17px;padding:2px 5px;border-radius:6px;transition:background .15s}
 .paid-btn:hover{background:var(--b2)}
 
+/* DEBT TABS (parcelamento/financiamento/emprestimo filter) */
+.debt-filter{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.debt-filter-btn{display:flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;color:var(--muted2);cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;padding:5px 12px;transition:all .18s}
+.debt-filter-btn.active{color:var(--text);border-color:var(--b3)}
+.debt-filter-btn.active-parcelamento{background:rgba(124,109,250,.15);border-color:#7c6dfa;color:#b0a8ff}
+.debt-filter-btn.active-financiamento{background:rgba(250,210,109,.15);border-color:#fad26d;color:#fad26d}
+.debt-filter-btn.active-emprestimo{background:rgba(250,109,143,.15);border-color:#fa6d8f;color:#fa6d8f}
+
 /* INSTALLMENT CARDS */
-.inst-list{display:flex;flex-direction:column;gap:12px}
-.inst-card{background:var(--s2);border:1px solid var(--b2);border-radius:12px;padding:15px;transition:border-color .2s}
+.inst-list{display:flex;flex-direction:column;gap:12px;max-height:520px;overflow-y:auto;padding-right:2px}
+.inst-card{background:var(--s1);border:1px solid var(--b2);border-radius:12px;padding:15px;transition:border-color .2s}
 .inst-card:hover{border-color:var(--b3)}
 .inst-card.done{opacity:.45}
 .inst-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
-.inst-name{font-weight:600;font-size:14px;margin-bottom:2px}
+.inst-name{font-weight:600;font-size:14px;margin-bottom:4px}
 .inst-sub{font-size:11px;color:var(--muted2)}
 .inst-right{text-align:right}
-.inst-rem{font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:700;color:var(--red);line-height:1}
+.inst-rem{font-family:'Bricolage Grotesque',sans-serif;font-size:19px;font-weight:700;line-height:1}
 .inst-paid-amt{font-size:11px;color:var(--muted2);margin-top:2px}
 .prog-wrap{background:var(--b1);border-radius:99px;height:5px;margin-bottom:8px;overflow:hidden}
-.prog-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .4s}
+.prog-fill{height:100%;border-radius:99px;transition:width .4s}
 .inst-bot{display:flex;justify-content:space-between;align-items:center}
 .inst-count{font-size:11px;color:var(--muted2)}
 .inst-next{font-size:11px;background:rgba(251,191,36,.1);color:var(--yellow);border-radius:5px;padding:2px 7px}
 .inst-done{font-size:11px;background:rgba(74,222,128,.1);color:var(--green);border-radius:5px;padding:2px 7px}
-
-/* DEBT SUMMARY ROW */
 .debt-row{display:flex;gap:12px;margin-bottom:16px}
 .debt-chip{background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:10px 14px;flex:1}
 .debt-chip-label{font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
 .debt-chip-val{font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:700}
 
 /* CONTAS FIXAS */
-.fixed-list{display:flex;flex-direction:column;gap:10px}
-.fixed-item{display:flex;align-items:center;justify-content:space-between;background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:13px 15px}
-.fixed-left{display:flex;align-items:center;gap:11px}
-.fixed-ico{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
-.fixed-name{font-size:13px;font-weight:600}
-.fixed-day{font-size:11px;color:var(--muted2);margin-top:1px}
-.fixed-amt{font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:700;color:var(--red)}
-.coming-soon{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:28px 0;color:var(--muted2);font-size:13px;text-align:center}
-.coming-soon-icon{font-size:34px;opacity:.35}
-.coming-soon-note{font-size:11px;color:var(--muted);max-width:200px;line-height:1.5}
+.rec-summary{display:flex;gap:10px;margin-bottom:16px}
+.rec-chip{background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:10px 14px;flex:1;text-align:center}
+.rec-chip-val{font-family:'Bricolage Grotesque',sans-serif;font-size:20px;font-weight:700;color:var(--red)}
+.rec-chip-label{font-size:10px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.7px;margin-top:3px}
+.rec-list{display:flex;flex-direction:column;gap:8px}
+.rec-item{display:flex;align-items:center;justify-content:space-between;background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:12px 14px;transition:border-color .2s}
+.rec-item:hover{border-color:var(--b3)}
+.rec-item.inactive{opacity:.4}
+.rec-left{display:flex;align-items:center;gap:11px}
+.rec-ico{width:36px;height:36px;border-radius:9px;background:rgba(124,109,250,.12);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.rec-name{font-size:13px;font-weight:600}
+.rec-day{font-size:11px;color:var(--muted2);margin-top:1px}
+.rec-right{display:flex;align-items:center;gap:8px}
+.rec-amt{font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:700;color:var(--red)}
+.rec-actions{display:flex;gap:2px;opacity:0;transition:opacity .15s}
+.rec-item:hover .rec-actions{opacity:1}
 
-@media(max-width:900px){
-  .sum-grid{grid-template-columns:1fr 1fr}
-  .grid2,.grid2b{grid-template-columns:1fr}
-}
-@media(max-width:560px){
-  .sum-grid{grid-template-columns:1fr}
-  .period-nav{flex-wrap:wrap;gap:4px}
-}
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:var(--s1);border:1px solid var(--b2);border-radius:var(--r);padding:28px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+.modal-title{font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:700;margin-bottom:20px}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.field-label{font-size:11px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;display:block}
+.icon-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.icon-opt{background:var(--s2);border:1px solid var(--b2);border-radius:8px;cursor:pointer;font-size:18px;padding:7px 10px;transition:all .15s;line-height:1}
+.icon-opt:hover{border-color:var(--acc)}
+.icon-opt.sel{border-color:var(--acc);background:rgba(124,109,250,.15)}
+
+@media(max-width:900px){.sum-grid{grid-template-columns:1fr 1fr}.grid2,.grid2b{grid-template-columns:1fr}}
+@media(max-width:560px){.sum-grid{grid-template-columns:1fr}}
 `
 
-// ─── MOCK contas fixas (até implementar) ────────────────────────────────────
-const MOCK_FIXED = [
-  { icon: "💡", name: "Luz", day: "todo dia 10", amount: 180, color: "#fad26d22" },
-  { icon: "🌐", name: "Internet", day: "todo dia 5", amount: 120, color: "#6db8fa22" },
-  { icon: "📱", name: "Celular", day: "todo dia 15", amount: 80, color: "#7c6dfa22" },
-  { icon: "🏠", name: "Aluguel", day: "todo dia 1", amount: 1500, color: "#fa6d8f22" },
-]
+// ─── RECURRING MODAL ─────────────────────────────────────────────────────
+interface RecurringItem {
+  id: number; name: string; amount: number; due_day: number
+  icon: string; active: boolean; category_id?: number; status?: string
+}
 
-// ─── APP ─────────────────────────────────────────────────────────────────────
+function RecurringModal({ initial, categories, onSave, onClose }: {
+  initial?: RecurringItem | null
+  categories: any[]
+  onSave: (data: any) => void
+  onClose: () => void
+}) {
+  const [name, setName] = useState(initial?.name ?? "")
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : "")
+  const [dueDay, setDueDay] = useState(initial ? String(initial.due_day) : "")
+  const [icon, setIcon] = useState(initial?.icon ?? "📄")
+  const [categoryId, setCategoryId] = useState(initial?.category_id ? String(initial.category_id) : "")
+  const [active, setActive] = useState(initial?.active ?? true)
+
+  function handleSave(e: any) {
+    e.preventDefault()
+    if (!name || !amount || !dueDay) { alert("Preencha nome, valor e dia"); return }
+    onSave({ name, amount: Number(amount), due_day: Number(dueDay), icon, category_id: categoryId ? Number(categoryId) : null, active })
+  }
+
+  return (
+    <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal">
+        <div className="modal-title">{initial ? "Editar conta fixa" : "Nova conta fixa"}</div>
+        <form onSubmit={handleSave}>
+          <div style={{ marginBottom: 16 }}>
+            <span className="field-label">Ícone</span>
+            <div className="icon-grid">
+              {ICON_OPTIONS.map(ic => (
+                <button key={ic} type="button" className={`icon-opt ${icon === ic ? "sel" : ""}`} onClick={() => setIcon(ic)}>{ic}</button>
+              ))}
+            </div>
+          </div>
+          <div className="form-row" style={{ marginBottom: 12 }}>
+            <div style={{ flex: 2, minWidth: 160 }}>
+              <span className="field-label">Nome</span>
+              <input placeholder="Ex: Luz, Netflix, Academia" value={name} onChange={e => setName(e.target.value)} />
+            </div>
+            <div style={{ flex: 1, minWidth: 90 }}>
+              <span className="field-label">Valor</span>
+              <input type="number" placeholder="0,00" value={amount} onChange={e => setAmount(e.target.value)} />
+            </div>
+          </div>
+          <div className="form-row" style={{ marginBottom: 12 }}>
+            <div style={{ flex: 1 }}>
+              <span className="field-label">Dia de vencimento</span>
+              <input type="number" min="1" max="31" placeholder="Ex: 10" value={dueDay} onChange={e => setDueDay(e.target.value)} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <span className="field-label">Categoria</span>
+              <select value={categoryId} onChange={e => setCategoryId(e.target.value)}>
+                <option value="">Sem categoria</option>
+                {categories.filter(c => c.type === "expense").map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input type="checkbox" id="active-chk" checked={active} onChange={e => setActive(e.target.checked)} style={{ width: "auto", cursor: "pointer" }} />
+            <label htmlFor="active-chk" style={{ fontSize: 13, color: "var(--muted2)", cursor: "pointer" }}>Conta ativa</label>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-s" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn btn-p">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const now = new Date()
   const [viewMode, setViewMode] = useState<"month" | "year">("month")
@@ -210,6 +289,8 @@ export default function App() {
   const [categorySummary, setCategorySummary] = useState<any[]>([])
   const [monthlyData, setMonthlyData] = useState<any[]>([])
   const [installmentsSummary, setInstallmentsSummary] = useState<any[]>([])
+  const [recurring, setRecurring] = useState<RecurringItem[]>([])
+  const [recurringTotal, setRecurringTotal] = useState(0)
 
   const [description, setDescription] = useState("")
   const [amount, setAmount] = useState("")
@@ -219,6 +300,7 @@ export default function App() {
   const [date, setDate] = useState(now.toISOString().slice(0, 10))
 
   const [showInstallment, setShowInstallment] = useState(false)
+  const [debtType, setDebtType] = useState("parcelamento")
   const [installment, setInstallment] = useState({
     description: "", total_amount: "", total_installments: "",
     start_date: now.toISOString().slice(0, 10)
@@ -228,14 +310,17 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false)
 
   const [activeTab, setActiveTab] = useState<"expense" | "income">("expense")
+  const [debtFilter, setDebtFilter] = useState<string>("todos")
 
-  // filtros derivados do viewMode
+  const [showRecurringModal, setShowRecurringModal] = useState(false)
+  const [editingRecurring, setEditingRecurring] = useState<RecurringItem | null>(null)
+
   const filters = viewMode === "month" ? { year, month } : { year }
 
   useEffect(() => { loadAll() }, [year, month, viewMode])
 
   async function loadAll() {
-    const [exp, inc, s, c, cs, ms, a, is_] = await Promise.all([
+    const [exp, inc, s, c, cs, ms, a, is_, rec] = await Promise.all([
       getTransactions("expense", filters),
       getTransactions("income", filters),
       getSummary(filters),
@@ -243,30 +328,28 @@ export default function App() {
       getCategorySummary(filters),
       getMonthlySummary(viewMode === "year" ? year : undefined),
       getAccounts(),
-      getInstallmentsSummary()
+      getInstallmentsSummary(),
+      getRecurring()
     ])
     setExpenses(exp); setIncome(inc); setSummary(s)
     setCategories(c); setCategorySummary(cs); setMonthlyData(ms)
     setAccounts(a); setInstallmentsSummary(is_)
+    const today = now.getDate()
+    const enriched = rec.map((r: RecurringItem) => ({ ...r, status: r.due_day >= today ? "upcoming" : "overdue" }))
+    setRecurring(enriched)
+    setRecurringTotal(enriched.filter((r: RecurringItem) => r.active).reduce((a: number, r: RecurringItem) => a + r.amount, 0))
   }
 
   function prevPeriod() {
-    if (viewMode === "month") {
-      if (month === 1) { setMonth(12); setYear(y => y - 1) }
-      else setMonth(m => m - 1)
-    } else setYear(y => y - 1)
+    if (viewMode === "month") { if (month === 1) { setMonth(12); setYear(y => y - 1) } else setMonth(m => m - 1) }
+    else setYear(y => y - 1)
   }
-
   function nextPeriod() {
-    if (viewMode === "month") {
-      if (month === 12) { setMonth(1); setYear(y => y + 1) }
-      else setMonth(m => m + 1)
-    } else setYear(y => y + 1)
+    if (viewMode === "month") { if (month === 12) { setMonth(1); setYear(y => y + 1) } else setMonth(m => m + 1) }
+    else setYear(y => y + 1)
   }
 
-  const periodLabel = viewMode === "month"
-    ? `${MONTHS_PT[month - 1]} ${year}`
-    : `${year}`
+  const periodLabel = viewMode === "month" ? `${MONTHS_PT[month - 1]} ${year}` : `${year}`
 
   async function handleSubmit(e: any) {
     e.preventDefault()
@@ -290,27 +373,39 @@ export default function App() {
         total_installments: Number(installment.total_installments),
         start_date: installment.start_date,
         category_id: Number(installCategoryId),
-        account_id: Number(installAccountId)
+        account_id: Number(installAccountId),
+        debt_type: debtType
       })
       setInstallment({ description: "", total_amount: "", total_installments: "", start_date: now.toISOString().slice(0, 10) })
-      setInstallCategoryId(""); setInstallAccountId("")
-      setShowInstallment(false)
-      loadAll()
+      setInstallCategoryId(""); setInstallAccountId(""); setShowInstallment(false); loadAll()
     } finally { setSubmitting(false) }
+  }
+
+  async function handleSaveRecurring(data: any) {
+    if (editingRecurring) await updateRecurring(editingRecurring.id, data)
+    else await createRecurring(data)
+    setShowRecurringModal(false); setEditingRecurring(null); loadAll()
+  }
+
+  async function handleDeleteRecurring(id: number) {
+    if (!confirm("Remover esta conta fixa?")) return
+    await deleteRecurring(id); loadAll()
   }
 
   function getCatName(id: number) { return categories.find(c => c.id === id)?.name ?? "-" }
 
-  const totalDebt = installmentsSummary.reduce((a, i) => a + i.total_remaining, 0)
-  const totalMonthlyInstallments = installmentsSummary
-    .filter(i => i.pending_installments > 0)
-    .reduce((a, i) => a + i.value_per_installment, 0)
-  const activeInst = installmentsSummary.filter(i => i.pending_installments > 0)
-  const doneInst = installmentsSummary.filter(i => i.pending_installments === 0)
+  // Dívidas filtradas por tipo
+  const filteredInst = debtFilter === "todos"
+    ? installmentsSummary
+    : installmentsSummary.filter(i => i.debt_type === debtFilter)
 
-  const chartData = viewMode === "year"
-    ? monthlyData
-    : monthlyData.filter(d => d.month.startsWith(`${year}-${String(month).padStart(2,"0")}`))
+  const totalDebt = filteredInst.reduce((a, i) => a + i.total_remaining, 0)
+  const totalMonthlyInst = filteredInst.filter(i => i.pending_installments > 0).reduce((a, i) => a + i.value_per_installment, 0)
+  const activeInst = filteredInst.filter(i => i.pending_installments > 0)
+  const doneInst = filteredInst.filter(i => i.pending_installments === 0)
+
+  // Contagem por tipo para os filtros
+  const countByType = (dt: string) => installmentsSummary.filter(i => i.debt_type === dt && i.pending_installments > 0).length
 
   const today = now.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
@@ -322,9 +417,7 @@ export default function App() {
         {/* HEADER */}
         <div className="hdr">
           <div className="logo">finance.</div>
-          <div className="hdr-right">
-            <div style={{ fontSize: 12, color: "var(--muted2)" }}>{today}</div>
-          </div>
+          <div style={{ fontSize: 12, color: "var(--muted2)" }}>{today}</div>
         </div>
 
         {/* PERIOD NAV */}
@@ -339,16 +432,10 @@ export default function App() {
             <button className={`view-btn ${viewMode === "year" ? "active" : ""}`} onClick={() => setViewMode("year")}>Anual</button>
           </div>
           {viewMode === "year" && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
               {MONTHS_PT.map((m, i) => (
-                <button
-                  key={i}
-                  className={`btn-ghost`}
-                  style={{ padding: "4px 10px", fontSize: 11 }}
-                  onClick={() => { setViewMode("month"); setMonth(i + 1) }}
-                >
-                  {m}
-                </button>
+                <button key={i} style={{ background: "var(--s2)", border: "1px solid var(--b2)", borderRadius: 8, color: "var(--muted2)", cursor: "pointer", fontSize: 11, fontFamily: "'Plus Jakarta Sans',sans-serif", padding: "4px 10px", transition: "all .15s" }}
+                  onClick={() => { setViewMode("month"); setMonth(i + 1) }}>{m}</button>
               ))}
             </div>
           )}
@@ -360,7 +447,7 @@ export default function App() {
             <div className="sum-card inc">
               <div className="sc-label">Receitas</div>
               <div className="sc-value g">{fmt(summary.total_income)}</div>
-              <div className="sc-sub">{viewMode === "month" ? periodLabel : `ano ${year}`}</div>
+              <div className="sc-sub">{periodLabel}</div>
               <div className="sc-icon">↑</div>
             </div>
             <div className="sum-card exp">
@@ -378,14 +465,12 @@ export default function App() {
           </div>
         )}
 
-        {/* MAIN GRID: forms + pizza */}
+        {/* FORMS + PIZZA */}
         <div className="grid2">
           <div>
             {/* NOVA TRANSAÇÃO */}
             <div className="panel" style={{ marginBottom: 14 }}>
-              <div className="panel-hdr">
-                <div className="panel-title">Nova transação</div>
-              </div>
+              <div className="panel-hdr"><div className="panel-title">Nova transação</div></div>
               <form onSubmit={handleSubmit}>
                 <div className="form-row">
                   <input style={{ flex: 2, minWidth: 140 }} type="text" placeholder="Descrição" value={description} onChange={e => setDescription(e.target.value)} />
@@ -410,14 +495,33 @@ export default function App() {
               </form>
             </div>
 
-            {/* PARCELAMENTO */}
+            {/* PARCELAMENTO / FINANCIAMENTO / EMPRÉSTIMO */}
             <button className={`toggle-btn ${showInstallment ? "on" : ""}`} onClick={() => setShowInstallment(!showInstallment)}>
-              💳 Criar parcelamento {showInstallment ? "▲" : "▼"}
+              💳 Nova dívida {showInstallment ? "▲" : "▼"}
             </button>
+
             {showInstallment && (
               <div className={`collapse-box ${showInstallment ? "on" : ""}`}>
-                <form onSubmit={handleInstallmentSubmit}>
-                  <div className="collapse-body">
+                <div className="collapse-body">
+                  {/* SELETOR DE TIPO */}
+                  <div style={{ width: "100%" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".7px", marginBottom: 8 }}>Tipo</div>
+                    <div className="debt-type-btns">
+                      {Object.entries(DEBT_TYPE_CONFIG).map(([key, cfg]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`debt-type-btn ${debtType === key ? `sel-${key}` : ""}`}
+                          onClick={() => setDebtType(key)}
+                        >
+                          <span>{cfg.icon}</span>
+                          <span>{cfg.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleInstallmentSubmit} style={{ width: "100%", display: "flex", flexWrap: "wrap", gap: 8 }}>
                     <input style={{ flex: 2, minWidth: 140 }} placeholder="Descrição" value={installment.description} onChange={e => setInstallment({ ...installment, description: e.target.value })} />
                     <input style={{ flex: 1 }} type="number" placeholder="Valor total" value={installment.total_amount} onChange={e => setInstallment({ ...installment, total_amount: e.target.value })} />
                     <input style={{ flex: 1, minWidth: 80 }} type="number" placeholder="Parcelas" min="1" value={installment.total_installments} onChange={e => setInstallment({ ...installment, total_installments: e.target.value })} />
@@ -432,14 +536,14 @@ export default function App() {
                     </select>
                     {installment.total_amount && installment.total_installments && Number(installment.total_installments) > 0 && (
                       <div className="hint">
-                        💡 {fmt(Number(installment.total_amount) / Number(installment.total_installments))}/mês · Só impacta o saldo quando marcado como pago
+                        {DEBT_TYPE_CONFIG[debtType].icon} {DEBT_TYPE_CONFIG[debtType].label} · {fmt(Number(installment.total_amount) / Number(installment.total_installments))}/mês · Só impacta o saldo quando marcado como pago
                       </div>
                     )}
                     <button type="submit" disabled={submitting} className="btn btn-p" style={{ opacity: submitting ? .6 : 1 }}>
-                      {submitting ? "Criando..." : "✅ Confirmar"}
+                      {submitting ? "Criando..." : `✅ Criar ${DEBT_TYPE_CONFIG[debtType].label}`}
                     </button>
-                  </div>
-                </form>
+                  </form>
+                </div>
               </div>
             )}
           </div>
@@ -466,7 +570,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* GRÁFICO EVOLUÇÃO */}
+        {/* GRÁFICO */}
         <div className="panel" style={{ marginBottom: 18 }}>
           <div className="panel-hdr">
             <div>
@@ -479,12 +583,10 @@ export default function App() {
               <AreaChart data={monthlyData}>
                 <defs>
                   <linearGradient id="gi" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4ade80" stopOpacity={.25} />
-                    <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#4ade80" stopOpacity={.25} /><stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="ge" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f87171" stopOpacity={.25} />
-                    <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#f87171" stopOpacity={.25} /><stop offset="95%" stopColor="#f87171" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff07" />
@@ -506,78 +608,113 @@ export default function App() {
         {/* DÍVIDAS + CONTAS FIXAS */}
         <div className="grid2b">
 
-          {/* PARCELAMENTOS */}
+          {/* DÍVIDAS */}
           <div className="panel">
             <div className="panel-hdr">
               <div>
                 <div className="panel-title">Minhas dívidas</div>
-                <div className="panel-sub">parcelamentos em aberto</div>
+                <div className="panel-sub">parcelamentos, financiamentos e empréstimos</div>
               </div>
               {activeInst.length > 0 && <span className="badge-count">{activeInst.length} ativo{activeInst.length > 1 ? "s" : ""}</span>}
             </div>
 
-            {installmentsSummary.length > 0 && (
+            {/* FILTRO POR TIPO */}
+            <div className="debt-filter">
+              {[
+                { key: "todos", icon: "📋", label: "Todos" },
+                { key: "parcelamento", icon: "💳", label: "Parcelamentos" },
+                { key: "financiamento", icon: "🏦", label: "Financiamentos" },
+                { key: "emprestimo", icon: "🤝", label: "Empréstimos" },
+              ].map(f => {
+                const count = f.key === "todos"
+                  ? installmentsSummary.filter(i => i.pending_installments > 0).length
+                  : countByType(f.key)
+                return (
+                  <button key={f.key}
+                    className={`debt-filter-btn ${debtFilter === f.key ? (f.key === "todos" ? "active" : `active-${f.key}`) : ""}`}
+                    onClick={() => setDebtFilter(f.key)}>
+                    {f.icon} {f.label} {count > 0 && <span style={{ background: "var(--b2)", borderRadius: 10, padding: "1px 6px", fontSize: 10 }}>{count}</span>}
+                  </button>
+                )
+              })}
+            </div>
+
+            {filteredInst.length > 0 && (
               <div className="debt-row">
                 <div className="debt-chip">
-                  <div className="debt-chip-label">Total em dívidas</div>
+                  <div className="debt-chip-label">Total em aberto</div>
                   <div className="debt-chip-val" style={{ color: "var(--red)" }}>{fmt(totalDebt)}</div>
                 </div>
                 <div className="debt-chip">
                   <div className="debt-chip-label">Compromisso mensal</div>
-                  <div className="debt-chip-val" style={{ color: "var(--yellow)" }}>{fmt(totalMonthlyInstallments)}</div>
+                  <div className="debt-chip-val" style={{ color: "var(--yellow)" }}>{fmt(totalMonthlyInst)}</div>
                 </div>
               </div>
             )}
 
-            {installmentsSummary.length === 0 ? (
+            {filteredInst.length === 0 ? (
               <div style={{ color: "var(--muted2)", fontSize: 13, textAlign: "center", padding: "28px 0" }}>
-                Nenhum parcelamento cadastrado.
+                {debtFilter === "todos" ? "Nenhuma dívida cadastrada." : `Nenhum ${DEBT_TYPE_CONFIG[debtFilter]?.label.toLowerCase() ?? debtFilter} cadastrado.`}
               </div>
             ) : (
               <div className="inst-list">
-                {activeInst.map(inst => (
-                  <div key={inst.id} className="inst-card">
-                    <div className="inst-top">
-                      <div>
-                        <div className="inst-name">{inst.description}</div>
-                        <div className="inst-sub">{fmt(inst.value_per_installment)}/mês</div>
+                {activeInst.map(inst => {
+                  const cfg = DEBT_TYPE_CONFIG[inst.debt_type] ?? DEBT_TYPE_CONFIG.parcelamento
+                  return (
+                    <div key={inst.id} className="inst-card">
+                      <div className="inst-top">
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                            <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>
+                              {cfg.icon} {cfg.label}
+                            </span>
+                          </div>
+                          <div className="inst-name">{inst.description}</div>
+                          <div className="inst-sub">{fmt(inst.value_per_installment)}/mês</div>
+                        </div>
+                        <div className="inst-right">
+                          <div className="inst-rem" style={{ color: cfg.color }}>{fmt(inst.total_remaining)}</div>
+                          <div className="inst-paid-amt">pago: {fmt(inst.total_paid)}</div>
+                        </div>
                       </div>
-                      <div className="inst-right">
-                        <div className="inst-rem">{fmt(inst.total_remaining)}</div>
-                        <div className="inst-paid-amt">pago: {fmt(inst.total_paid)}</div>
+                      <div className="prog-wrap">
+                        <div className="prog-fill" style={{ width: `${inst.progress_percent}%`, background: `linear-gradient(90deg, ${cfg.color}, ${cfg.color}aa)` }} />
                       </div>
-                    </div>
-                    <div className="prog-wrap">
-                      <div className="prog-fill" style={{ width: `${inst.progress_percent}%` }} />
-                    </div>
-                    <div className="inst-bot">
-                      <div className="inst-count">{inst.paid_installments}/{inst.total_installments} parcelas · {inst.progress_percent}%</div>
-                      {inst.next_due_date && (
-                        <div className="inst-next">📅 {fmtDate(inst.next_due_date)}</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {doneInst.map(inst => (
-                  <div key={inst.id} className="inst-card done">
-                    <div className="inst-top">
-                      <div>
-                        <div className="inst-name">{inst.description}</div>
-                        <div className="inst-sub">{inst.total_installments} parcelas</div>
-                      </div>
-                      <div className="inst-right">
-                        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--green)" }}>{fmt(inst.total_paid)}</div>
+                      <div className="inst-bot">
+                        <div className="inst-count">{inst.paid_installments}/{inst.total_installments} · {inst.progress_percent}%</div>
+                        {inst.next_due_date && <div className="inst-next">📅 {fmtDate(inst.next_due_date)}</div>}
                       </div>
                     </div>
-                    <div className="prog-wrap">
-                      <div className="prog-fill" style={{ width: "100%" }} />
+                  )
+                })}
+                {doneInst.map(inst => {
+                  const cfg = DEBT_TYPE_CONFIG[inst.debt_type] ?? DEBT_TYPE_CONFIG.parcelamento
+                  return (
+                    <div key={inst.id} className="inst-card done">
+                      <div className="inst-top">
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                            <span style={{ background: cfg.bg, color: cfg.color, borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>
+                              {cfg.icon} {cfg.label}
+                            </span>
+                          </div>
+                          <div className="inst-name">{inst.description}</div>
+                          <div className="inst-sub">{inst.total_installments} parcelas</div>
+                        </div>
+                        <div className="inst-right">
+                          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 18, fontWeight: 700, color: "var(--green)" }}>{fmt(inst.total_paid)}</div>
+                        </div>
+                      </div>
+                      <div className="prog-wrap">
+                        <div className="prog-fill" style={{ width: "100%", background: "var(--green)" }} />
+                      </div>
+                      <div className="inst-bot">
+                        <div className="inst-count">100% pago</div>
+                        <div className="inst-done">✅ Quitado</div>
+                      </div>
                     </div>
-                    <div className="inst-bot">
-                      <div className="inst-count">100% pago</div>
-                      <div className="inst-done">✅ Quitado</div>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -589,29 +726,63 @@ export default function App() {
                 <div className="panel-title">Contas fixas</div>
                 <div className="panel-sub">recorrências mensais</div>
               </div>
-              <span className="badge-count" style={{ background: "rgba(251,191,36,.1)", color: "var(--yellow)", border: "1px solid rgba(251,191,36,.2)", fontSize: 10 }}>em breve</span>
+              <button className="btn btn-p" style={{ padding: "7px 14px", fontSize: 12 }}
+                onClick={() => { setEditingRecurring(null); setShowRecurringModal(true) }}>
+                + Nova
+              </button>
             </div>
 
-            <div className="fixed-list">
-              {MOCK_FIXED.map((item, i) => (
-                <div key={i} className="fixed-item" style={{ opacity: .55 }}>
-                  <div className="fixed-left">
-                    <div className="fixed-ico" style={{ background: item.color }}>{item.icon}</div>
-                    <div>
-                      <div className="fixed-name">{item.name}</div>
-                      <div className="fixed-day">{item.day}</div>
+            {recurring.length > 0 && (
+              <div className="rec-summary">
+                <div className="rec-chip">
+                  <div className="rec-chip-val">{fmt(recurringTotal)}</div>
+                  <div className="rec-chip-label">Total mensal</div>
+                </div>
+                <div className="rec-chip">
+                  <div className="rec-chip-val" style={{ color: "var(--muted2)", fontSize: 18 }}>{recurring.filter(r => r.active).length}</div>
+                  <div className="rec-chip-label">Contas ativas</div>
+                </div>
+              </div>
+            )}
+
+            {recurring.length === 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "32px 0", color: "var(--muted2)", fontSize: 13, textAlign: "center" }}>
+                <div style={{ fontSize: 36, opacity: .3 }}>🧾</div>
+                <div>Nenhuma conta fixa cadastrada.</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", maxWidth: 200, lineHeight: 1.5 }}>Adicione luz, água, internet, assinaturas e outras recorrências mensais.</div>
+              </div>
+            ) : (
+              <div className="rec-list">
+                {recurring.map(item => (
+                  <div key={item.id} className={`rec-item ${!item.active ? "inactive" : ""}`}>
+                    <div className="rec-left">
+                      <div className="rec-ico">{item.icon}</div>
+                      <div>
+                        <div className="rec-name">{item.name}</div>
+                        <div className="rec-day">
+                          dia {item.due_day}
+                          {item.active && (
+                            <span style={{ marginLeft: 6 }}>
+                              {item.status === "overdue"
+                                ? <span className="badge b-over">venceu</span>
+                                : <span className="badge b-up">a vencer</span>}
+                            </span>
+                          )}
+                          {!item.active && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--muted)" }}>inativa</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rec-right">
+                      <div className="rec-amt">{fmt(item.amount)}</div>
+                      <div className="rec-actions">
+                        <button className="btn-edit" onClick={() => { setEditingRecurring(item); setShowRecurringModal(true) }}>✏️</button>
+                        <button className="btn-del" onClick={() => handleDeleteRecurring(item.id)}>🗑</button>
+                      </div>
                     </div>
                   </div>
-                  <div className="fixed-amt">{fmt(item.amount)}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="coming-soon" style={{ marginTop: 16 }}>
-              <div className="coming-soon-icon">🔧</div>
-              <div>Funcionalidade em desenvolvimento</div>
-              <div className="coming-soon-note">Em breve você poderá gerenciar suas contas fixas diretamente aqui</div>
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -622,20 +793,15 @@ export default function App() {
               <button className={`tab ${activeTab === "expense" ? "on" : ""}`} onClick={() => setActiveTab("expense")}>Despesas</button>
               <button className={`tab ${activeTab === "income" ? "on" : ""}`} onClick={() => setActiveTab("income")}>Receitas</button>
             </div>
-            <span className="badge-count">
-              {activeTab === "expense" ? expenses.length : income.length} registros · {periodLabel}
-            </span>
+            <span className="badge-count">{activeTab === "expense" ? expenses.length : income.length} registros · {periodLabel}</span>
           </div>
-
           <div className="tbl-wrap">
             {activeTab === "expense" && (
               expenses.length === 0
                 ? <div style={{ color: "var(--muted2)", fontSize: 13, textAlign: "center", padding: "28px 0" }}>Nenhuma despesa em {periodLabel}.</div>
                 : (
                   <table>
-                    <thead><tr>
-                      <th>Descrição</th><th>Categoria</th><th>Data</th><th>Valor</th><th>Status</th><th></th>
-                    </tr></thead>
+                    <thead><tr><th>Descrição</th><th>Categoria</th><th>Data</th><th>Valor</th><th>Status</th><th></th></tr></thead>
                     <tbody>
                       {expenses.map(t => (
                         <tr key={t.id} className={t.paid && t.installment_id ? "paid-row" : ""}>
@@ -648,12 +814,10 @@ export default function App() {
                           <td><span className="badge b-exp">{fmt(t.amount)}</span></td>
                           <td>
                             {t.installment_id
-                              ? (
-                                <button className="paid-btn" title={t.paid ? "Marcar pendente" : "Marcar pago"}
+                              ? <button className="paid-btn" title={t.paid ? "Marcar pendente" : "Marcar pago"}
                                   onClick={async () => { await markTransactionPaid(t.id, !t.paid); loadAll() }}>
                                   {t.paid ? "✅" : "⏳"}
                                 </button>
-                              )
                               : <span className="badge b-paid">✓ pago</span>
                             }
                           </td>
@@ -669,9 +833,7 @@ export default function App() {
                 ? <div style={{ color: "var(--muted2)", fontSize: 13, textAlign: "center", padding: "28px 0" }}>Nenhuma receita em {periodLabel}.</div>
                 : (
                   <table>
-                    <thead><tr>
-                      <th>Descrição</th><th>Categoria</th><th>Data</th><th>Valor</th><th></th>
-                    </tr></thead>
+                    <thead><tr><th>Descrição</th><th>Categoria</th><th>Data</th><th>Valor</th><th></th></tr></thead>
                     <tbody>
                       {income.map(t => (
                         <tr key={t.id}>
@@ -690,6 +852,16 @@ export default function App() {
         </div>
 
       </div>
+
+      {/* MODAL CONTAS FIXAS */}
+      {showRecurringModal && (
+        <RecurringModal
+          initial={editingRecurring}
+          categories={categories}
+          onSave={handleSaveRecurring}
+          onClose={() => { setShowRecurringModal(false); setEditingRecurring(null) }}
+        />
+      )}
     </>
   )
 }
