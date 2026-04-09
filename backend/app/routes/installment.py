@@ -1,15 +1,37 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
+from datetime import date
+
 from app.database import get_db
 from app.schemas.installment import InstallmentCreate, InstallmentResponse
-from app.services.installment_service import create_installment
+from app.services.installment_service import create_installment, create_installment_custom
 from app.models.installment import Installment
 from app.models.transaction import Transaction
 
 router = APIRouter(prefix="/installments", tags=["Installments"])
 
-DEBT_TYPES = ["parcelamento", "financiamento", "emprestimo"]
+
+# ── Schema para edição ────────────────────────────────────────────────────────
+class InstallmentUpdate(BaseModel):
+    description: str
+    debt_type: str
+    total_amount: float
+
+
+# ── Schema para parcelas personalizadas ──────────────────────────────────────
+class CustomInstallmentItem(BaseModel):
+    amount: float
+    date: str
+
+
+class InstallmentCreateCustom(BaseModel):
+    description: str
+    debt_type: str = "parcelamento"
+    category_id: int
+    account_id: int
+    installments: List[CustomInstallmentItem]
 
 
 @router.post("/", response_model=InstallmentResponse)
@@ -17,9 +39,39 @@ def create(data: InstallmentCreate, db: Session = Depends(get_db)):
     return create_installment(db, data)
 
 
+@router.post("/custom", response_model=InstallmentResponse)
+def create_custom(data: InstallmentCreateCustom, db: Session = Depends(get_db)):
+    return create_installment_custom(db, data)
+
+
 @router.get("/", response_model=List[InstallmentResponse])
 def list_installments(db: Session = Depends(get_db)):
     return db.query(Installment).all()
+
+
+@router.put("/{id}")
+def update_installment(id: int, data: InstallmentUpdate, db: Session = Depends(get_db)):
+    inst = db.query(Installment).filter(Installment.id == id).first()
+    if not inst:
+        raise HTTPException(404, "Não encontrado")
+    inst.description = data.description
+    inst.debt_type = data.debt_type
+    inst.total_amount = data.total_amount
+    db.commit()
+    db.refresh(inst)
+    return {"ok": True}
+
+
+@router.delete("/{id}")
+def delete_installment(id: int, db: Session = Depends(get_db)):
+    inst = db.query(Installment).filter(Installment.id == id).first()
+    if not inst:
+        raise HTTPException(404, "Não encontrado")
+    # remove parcelas associadas
+    db.query(Transaction).filter(Transaction.installment_id == id).delete()
+    db.delete(inst)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/summary")

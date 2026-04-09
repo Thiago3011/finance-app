@@ -29,6 +29,7 @@ class TransactionResponse(TransactionBase):
 class TransactionSummary(BaseModel):
     total_income: float
     total_expense: float
+    total_pending: float
     balance: float
 
 

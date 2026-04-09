@@ -9,6 +9,7 @@ from pydantic import BaseModel as PydanticBase
 from app.database import get_db
 from app.models.transaction import Transaction
 from app.models.category import Category
+from app.models.account import Account
 from app.schemas.transaction import (
     TransactionCreate,
     TransactionResponse,
@@ -80,15 +81,21 @@ def get_summary(
     transactions = query.all()
     total_income = 0
     total_expense = 0
+    total_pending = 0
+
     for t in transactions:
         if t.type == "income":
             total_income += t.amount
-        elif t.type == "expense" and t.paid:
-            total_expense += t.amount
+        elif t.type == "expense":
+            if t.paid:
+                total_expense += t.amount
+            else:
+                total_pending += t.amount
 
     return {
         "total_income": total_income,
         "total_expense": total_expense,
+        "total_pending": total_pending,
         "balance": total_income - total_expense
     }
 
@@ -119,11 +126,12 @@ def summary_by_category(
     return [{"category": name, "total": total} for name, total in results]
 
 
-# 🔥 BUG CORRIGIDO: usa Transaction.type em vez de Category.type
+# ── FIX: filtra por ano E mês quando viewMode=month ──────────────────────────
 @router.get("/monthly-summary")
 def get_monthly_summary(
     db: Session = Depends(get_db),
     year: Optional[int] = Query(None),
+    month: Optional[int] = Query(None),
 ):
     query = db.query(
         func.strftime("%Y-%m", Transaction.date).label("month"),
@@ -132,15 +140,17 @@ def get_monthly_summary(
     )
     if year:
         query = query.filter(func.strftime("%Y", Transaction.date) == str(year))
+    if month:
+        query = query.filter(func.strftime("%m", Transaction.date) == f"{month:02d}")
 
     results = query.group_by("month", Transaction.type).order_by("month").all()
 
     summary: dict = {}
-    for month, type_, total in results:
-        if month not in summary:
-            summary[month] = {"month": month, "income": 0, "expense": 0}
+    for m, type_, total in results:
+        if m not in summary:
+            summary[m] = {"month": m, "income": 0, "expense": 0}
         if type_ in ("income", "expense"):
-            summary[month][type_] = total
+            summary[m][type_] = total
 
     response = []
     for m in summary:
@@ -148,6 +158,46 @@ def get_monthly_summary(
         exp = summary[m]["expense"]
         response.append({"month": m, "income": inc, "expense": exp, "balance": inc - exp})
     return response
+
+
+# ── RESUMO POR CONTA ──────────────────────────────────────────────────────────
+@router.get("/transactions/by-account")
+def summary_by_account(
+    db: Session = Depends(get_db),
+    year: Optional[int] = Query(None),
+    month: Optional[int] = Query(None),
+):
+    query = (
+        db.query(
+            Account.name,
+            Transaction.type,
+            func.sum(Transaction.amount).label("total")
+        )
+        .join(Transaction, Transaction.account_id == Account.id)
+    )
+    if year:
+        query = query.filter(func.strftime("%Y", Transaction.date) == str(year))
+    if month:
+        query = query.filter(func.strftime("%m", Transaction.date) == f"{month:02d}")
+
+    results = query.group_by(Account.name, Transaction.type).all()
+
+    accounts: dict = {}
+    for acc_name, type_, total in results:
+        if acc_name not in accounts:
+            accounts[acc_name] = {"name": acc_name, "income": 0, "expense": 0}
+        if type_ in ("income", "expense"):
+            accounts[acc_name][type_] = total
+
+    response = []
+    for a in accounts.values():
+        response.append({
+            "name": a["name"],
+            "income": a["income"],
+            "expense": a["expense"],
+            "balance": a["income"] - a["expense"]
+        })
+    return sorted(response, key=lambda x: x["expense"], reverse=True)
 
 
 @router.delete("/transactions/{transaction_id}")
