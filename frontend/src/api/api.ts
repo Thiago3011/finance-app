@@ -1,8 +1,6 @@
 const API_URL = "http://127.0.0.1:8000"
 
 export interface FilterParams {
-  startDate?: string
-  endDate?: string
   year?: number
   month?: number
 }
@@ -10,8 +8,6 @@ export interface FilterParams {
 function buildQS(filters: FilterParams, type?: string): string {
   const p = new URLSearchParams()
   if (type) p.append("type", type)
-  if (filters.startDate) p.append("start_date", filters.startDate)
-  if (filters.endDate) p.append("end_date", filters.endDate)
   if (filters.year) p.append("year", String(filters.year))
   if (filters.month) p.append("month", String(filters.month))
   return p.toString() ? `?${p.toString()}` : ""
@@ -41,6 +37,12 @@ export async function markTransactionPaid(id: number, paid: boolean) {
   })
   return res.json()
 }
+export async function updateTransactionAmount(id: number, amount: number) {
+  const res = await fetch(`${API_URL}/transactions/${id}/amount`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount })
+  })
+  return res.json()
+}
 export async function getMonthlySummary(year?: number, month?: number) {
   const p = new URLSearchParams()
   if (year) p.append("year", String(year))
@@ -51,6 +53,10 @@ export async function getMonthlySummary(year?: number, month?: number) {
 }
 export async function getAccountSummary(filters: FilterParams = {}) {
   const res = await fetch(`${API_URL}/transactions/by-account${buildQS(filters)}`)
+  return res.json()
+}
+export async function getCategorySummary(filters: FilterParams = {}) {
+  const res = await fetch(`${API_URL}/transactions/by-category${buildQS(filters)}`)
   return res.json()
 }
 
@@ -73,10 +79,6 @@ export async function updateCategory(id: number, data: { name: string; type: str
 }
 export async function deleteCategory(id: number) {
   await fetch(`${API_URL}/categories/${id}`, { method: "DELETE" })
-}
-export async function getCategorySummary(filters: FilterParams = {}) {
-  const res = await fetch(`${API_URL}/transactions/by-category${buildQS(filters)}`)
-  return res.json()
 }
 
 // ── ACCOUNTS ─────────────────────────────────────────────────────────────────
@@ -132,6 +134,10 @@ export async function getRecurring() {
   const res = await fetch(`${API_URL}/recurring/`)
   return res.json()
 }
+export async function getRecurringForMonth(year: number, month: number) {
+  const res = await fetch(`${API_URL}/recurring/for-month?year=${year}&month=${month}`)
+  return res.json()
+}
 export async function createRecurring(data: any) {
   const res = await fetch(`${API_URL}/recurring/`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
@@ -147,6 +153,18 @@ export async function updateRecurring(id: number, data: any) {
 export async function updateRecurringAmount(id: number, amount: number) {
   const res = await fetch(`${API_URL}/recurring/${id}/amount`, {
     method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount })
+  })
+  return res.json()
+}
+export async function payRecurring(id: number, data: { year: number; month: number; amount: number; account_id: number }) {
+  const res = await fetch(`${API_URL}/recurring/${id}/pay`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
+  })
+  return res.json()
+}
+export async function unpayRecurring(id: number, data: { year: number; month: number }) {
+  const res = await fetch(`${API_URL}/recurring/${id}/pay`, {
+    method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data)
   })
   return res.json()
 }

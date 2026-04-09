@@ -29,7 +29,7 @@ def create_transaction(transaction: TransactionCreate, db: Session = Depends(get
         date=transaction.date,
         category_id=transaction.category_id,
         account_id=transaction.account_id,
-        paid=True  # transações normais sempre pagas
+        paid=True
     )
     db.add(db_transaction)
     db.commit()
@@ -126,7 +126,6 @@ def summary_by_category(
     return [{"category": name, "total": total} for name, total in results]
 
 
-# ── FIX: filtra por ano E mês quando viewMode=month ──────────────────────────
 @router.get("/monthly-summary")
 def get_monthly_summary(
     db: Session = Depends(get_db),
@@ -160,7 +159,6 @@ def get_monthly_summary(
     return response
 
 
-# ── RESUMO POR CONTA ──────────────────────────────────────────────────────────
 @router.get("/transactions/by-account")
 def summary_by_account(
     db: Session = Depends(get_db),
@@ -168,11 +166,7 @@ def summary_by_account(
     month: Optional[int] = Query(None),
 ):
     query = (
-        db.query(
-            Account.name,
-            Transaction.type,
-            func.sum(Transaction.amount).label("total")
-        )
+        db.query(Account.name, Transaction.type, func.sum(Transaction.amount).label("total"))
         .join(Transaction, Transaction.account_id == Account.id)
     )
     if year:
@@ -181,7 +175,6 @@ def summary_by_account(
         query = query.filter(func.strftime("%m", Transaction.date) == f"{month:02d}")
 
     results = query.group_by(Account.name, Transaction.type).all()
-
     accounts: dict = {}
     for acc_name, type_, total in results:
         if acc_name not in accounts:
@@ -191,12 +184,7 @@ def summary_by_account(
 
     response = []
     for a in accounts.values():
-        response.append({
-            "name": a["name"],
-            "income": a["income"],
-            "expense": a["expense"],
-            "balance": a["income"] - a["expense"]
-        })
+        response.append({"name": a["name"], "income": a["income"], "expense": a["expense"], "balance": a["income"] - a["expense"]})
     return sorted(response, key=lambda x: x["expense"], reverse=True)
 
 
@@ -210,6 +198,7 @@ def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
     return {"message": "Transaction deleted"}
 
 
+# ── PATCH paid (parcelas) ────────────────────────────────────────────────────
 class PaidUpdate(PydanticBase):
     paid: bool
 
@@ -218,9 +207,26 @@ def update_paid(transaction_id: int, body: PaidUpdate, db: Session = Depends(get
     transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     if not transaction:
         return {"error": "Transaction not found"}
-    if transaction.installment_id is None:
-        return {"error": "Apenas parcelas podem ter o status alterado"}
+    if transaction.installment_id is None and not transaction.description.startswith("[FIXA]"):
+        return {"error": "Apenas parcelas e fixas podem ter o status alterado"}
     transaction.paid = body.paid
     db.commit()
     db.refresh(transaction)
     return {"id": transaction.id, "paid": transaction.paid}
+
+
+# ── PATCH amount — editar valor pago (juros, diferença) ──────────────────────
+class AmountUpdate(PydanticBase):
+    amount: float
+
+@router.patch("/transactions/{transaction_id}/amount")
+def update_amount(transaction_id: int, body: AmountUpdate, db: Session = Depends(get_db)):
+    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not transaction:
+        return {"error": "Transaction not found"}
+    if body.amount <= 0:
+        return {"error": "Valor deve ser maior que zero"}
+    transaction.amount = body.amount
+    db.commit()
+    db.refresh(transaction)
+    return {"id": transaction.id, "amount": transaction.amount}
