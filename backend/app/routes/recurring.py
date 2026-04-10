@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import date, datetime
+from datetime import date
+import calendar
 
 from app.database import get_db
 from app.models.recurring import Recurring
@@ -10,11 +11,10 @@ from app.models.recurring import Recurring
 router = APIRouter(prefix="/recurring", tags=["Recurring"])
 
 
-# ── Schemas ──────────────────────────────────────────────────────────────────
 class RecurringCreate(BaseModel):
     name: str
     amount: float
-    due_day: Optional[int] = None   # nullable para variáveis
+    due_day: Optional[int] = None
     category_id: Optional[int] = None
     icon: str = "📄"
     active: bool = True
@@ -35,7 +35,6 @@ class RecurringResponse(BaseModel):
         from_attributes = True
 
 
-# ── Routes ───────────────────────────────────────────────────────────────────
 @router.get("/", response_model=List[RecurringResponse])
 def list_recurring(db: Session = Depends(get_db)):
     fixed = db.query(Recurring).filter(Recurring.is_variable == False).order_by(Recurring.due_day).all()
@@ -45,7 +44,6 @@ def list_recurring(db: Session = Depends(get_db)):
 
 @router.post("/", response_model=RecurringResponse)
 def create_recurring(data: RecurringCreate, db: Session = Depends(get_db)):
-    # valida dia de vencimento só se não for variável
     if not data.is_variable:
         if data.due_day is None:
             raise HTTPException(400, "Informe o dia de vencimento para contas fixas")
@@ -86,7 +84,6 @@ def update_recurring(id: int, data: RecurringCreate, db: Session = Depends(get_d
 
 @router.patch("/{id}/amount")
 def update_amount(id: int, body: dict, db: Session = Depends(get_db)):
-    """Atualiza o valor — útil para variáveis todo mês"""
     item = db.query(Recurring).filter(Recurring.id == id).first()
     if not item:
         raise HTTPException(404, "Não encontrado")
@@ -107,31 +104,25 @@ def delete_recurring(id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/for-month")
-def recurring_for_month(
-    year: int,
-    month: int,
-    db: Session = Depends(get_db)
-):
+def recurring_for_month(year: int, month: int, db: Session = Depends(get_db)):
     """
-    Retorna as contas fixas ativas com status de pagamento para o mês/ano informado.
-    Usa as transações já lançadas para detectar se foi pago.
+    Retorna contas fixas ativas com status de pagamento para o mês.
+    Identifica pagamentos pelo recurring_id salvo na transação (campo notes).
     """
     from app.models.transaction import Transaction
-    import calendar
 
     items = db.query(Recurring).filter(Recurring.active == True).all()
     today = date.today()
     result = []
 
     for item in items:
-        # Busca se já tem transação lançada para esta conta fixa neste mês
-        # Identifica pelo description que começa com o nome da conta
+        # ✅ FIX: busca por recurring_id único, não por nome
+        # Usamos description no formato "[FIXA:{id}] Nome" para identificação única
         existing = db.query(Transaction).filter(
-            Transaction.description.like(f"[FIXA] {item.name}%"),
+            Transaction.description.like(f"[FIXA:{item.id}]%"),
             Transaction.type == "expense",
         ).all()
 
-        # filtra pelo mês/ano
         month_tx = [t for t in existing if t.date.year == year and t.date.month == month]
 
         paid = len(month_tx) > 0
@@ -139,14 +130,16 @@ def recurring_for_month(
         tx_id = month_tx[0].id if month_tx else None
 
         # status de vencimento
-        if item.due_day:
-            due_date = date(year, month, min(item.due_day, calendar.monthrange(year, month)[1]))
-            if today > due_date and not paid:
-                status = "overdue"
-            elif today <= due_date and not paid:
-                status = "upcoming"
-            else:
+        if item.due_day and not item.is_variable:
+            max_day = calendar.monthrange(year, month)[1]
+            due_date = date(year, month, min(item.due_day, max_day))
+            if paid:
                 status = "paid"
+            elif today > due_date:
+                status = "overdue"
+            else:
+                days_left = (due_date - today).days
+                status = "soon" if days_left <= 5 else "upcoming"
         else:
             status = "paid" if paid else "variable"
 
@@ -170,11 +163,10 @@ def recurring_for_month(
 @router.post("/{id}/pay")
 def pay_recurring(id: int, body: dict, db: Session = Depends(get_db)):
     """
-    Lança (ou atualiza) a transação de pagamento de uma conta fixa no mês.
-    body: { year, month, amount, account_id }
+    Lança transação de pagamento de conta fixa no mês.
+    Usa [FIXA:{id}] como prefixo para identificação única.
     """
     from app.models.transaction import Transaction
-    import calendar
 
     item = db.query(Recurring).filter(Recurring.id == id).first()
     if not item:
@@ -188,9 +180,9 @@ def pay_recurring(id: int, body: dict, db: Session = Depends(get_db)):
     if not account_id:
         raise HTTPException(400, "Informe a conta (account_id)")
 
-    # Remove lançamento anterior se existir
+    # Remove lançamento anterior do mesmo mês (se existir)
     existing = db.query(Transaction).filter(
-        Transaction.description.like(f"[FIXA] {item.name}%"),
+        Transaction.description.like(f"[FIXA:{item.id}]%"),
         Transaction.type == "expense",
     ).all()
     for t in existing:
@@ -198,9 +190,11 @@ def pay_recurring(id: int, body: dict, db: Session = Depends(get_db)):
             db.delete(t)
 
     # Cria novo lançamento
-    day = min(item.due_day or date.today().day, calendar.monthrange(year, month)[1])
+    max_day = calendar.monthrange(year, month)[1]
+    day = min(item.due_day or date.today().day, max_day)
+
     tx = Transaction(
-        description=f"[FIXA] {item.name}",
+        description=f"[FIXA:{item.id}] {item.name}",
         amount=amount,
         type="expense",
         date=date(year, month, day),
@@ -216,7 +210,7 @@ def pay_recurring(id: int, body: dict, db: Session = Depends(get_db)):
 
 @router.delete("/{id}/pay")
 def unpay_recurring(id: int, body: dict, db: Session = Depends(get_db)):
-    """Remove o pagamento de uma conta fixa no mês (marca como não pago)"""
+    """Remove pagamento da conta fixa no mês."""
     from app.models.transaction import Transaction
 
     item = db.query(Recurring).filter(Recurring.id == id).first()
@@ -227,7 +221,7 @@ def unpay_recurring(id: int, body: dict, db: Session = Depends(get_db)):
     month = body.get("month", date.today().month)
 
     existing = db.query(Transaction).filter(
-        Transaction.description.like(f"[FIXA] {item.name}%"),
+        Transaction.description.like(f"[FIXA:{item.id}]%"),
         Transaction.type == "expense",
     ).all()
     for t in existing:
