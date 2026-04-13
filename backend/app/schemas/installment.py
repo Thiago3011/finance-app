@@ -3,6 +3,11 @@ from datetime import datetime
 from typing import Optional
 
 
+# Tipos válidos de dívida
+# parcelamento | financiamento | emprestimo_pessoal | emprestimo_consignado
+DEBT_TYPES = ["parcelamento", "financiamento", "emprestimo_pessoal", "emprestimo_consignado"]
+
+
 class InstallmentCreate(BaseModel):
     description: str
     total_amount: float
@@ -10,7 +15,7 @@ class InstallmentCreate(BaseModel):
     start_date: str
     category_id: int
     account_id: int
-    debt_type: str = "parcelamento"  # parcelamento | financiamento | emprestimo
+    debt_type: str = "parcelamento"
 
 
 class InstallmentResponse(BaseModel):
