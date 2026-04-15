@@ -18,10 +18,10 @@ const PIE_COLORS = ["#7c6dfa","#fa6d8f","#6dfabc","#fad26d","#6db8fa","#fa8c6d",
 const ICON_OPTIONS = ["💡","🌊","📱","🌐","🏠","🚗","💊","📺","🎮","🎵","☕","🏋️","📚","✈️","🐾","🛡️","💳","🔑","📄","🏦","⛽","🧾","🎓","🍔"]
 
 const DEBT_CFG: Record<string, { label: string; icon: string; color: string; bg: string; sub?: string }> = {
-  parcelamento:          { label: "Parcelamento",       icon: "💳", color: "#7c6dfa", bg: "rgba(124,109,250,.15)" },
-  financiamento:         { label: "Financiamento",      icon: "🏦", color: "#fad26d", bg: "rgba(250,210,109,.15)" },
-  emprestimo_pessoal:    { label: "Emp. Pessoal",       icon: "🤝", color: "#fa6d8f", bg: "rgba(250,109,143,.15)" },
-  emprestimo_consignado: { label: "Emp. Consignado",    icon: "📋", color: "#6dfabc", bg: "rgba(109,250,188,.15)", sub: "desconto em folha" },
+  parcelamento:          { label: "Parcelamento",    icon: "💳", color: "#7c6dfa", bg: "rgba(124,109,250,.15)" },
+  financiamento:         { label: "Financiamento",   icon: "🏦", color: "#fad26d", bg: "rgba(250,210,109,.15)" },
+  emprestimo_pessoal:    { label: "Emp. Pessoal",    icon: "🤝", color: "#fa6d8f", bg: "rgba(250,109,143,.15)" },
+  emprestimo_consignado: { label: "Emp. Consignado", icon: "📋", color: "#6dfabc", bg: "rgba(109,250,188,.15)", sub: "desconto em folha" },
 }
 
 function getTxKind(t: any): { label: string; color: string; bg: string } {
@@ -41,7 +41,7 @@ function enrichExpenses(expenses: any[], recurringItems: any[]) {
   const varIds = new Set(recurringItems.filter(r => r.is_variable).map(r => r.id))
   return expenses.map(t => {
     const m = (t.description ?? "").match(/^\[FIXA:(\d+)\]/)
-    if (m) return { ...t, is_variable_recurring: varIds.has(parseInt(m[1])) }
+    if (m) return { ...t, is_variable_recurring: varIds.has(parseInt(m[1])), is_fixa: true }
     return t
   })
 }
@@ -86,11 +86,21 @@ body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans
 .sc-sub{font-size:12px;color:var(--muted2);margin-top:5px}
 .sc-ico{position:absolute;right:14px;top:14px;font-size:28px;opacity:.07}
 
-/* DASHBOARD LAYOUT
-   Top row: [form+evolução col-left] [pizza+fixas col-right]  → align-items:start so right col doesn't stretch
-   Bottom row: [tabela large] [tipo-pizza + por-conta small]
+/*
+  DASHBOARD LAYOUT (wireframe image 2):
+  ┌──────────────────────────────┐ ┌──────────────┐
+  │ Nova transação               │ │              │
+  ├──────────────────────────────┤ │ Contas fixas │
+  │ Evolução                     │ │              │
+  ├──────────┬──────────┬────────┤ │              │
+  │ Por cat  │ Por tipo │ P.cta  │ │              │
+  ├──────────┴──────────┴────────┤ │              │
+  │ Lista de despesas/receitas   │ │              │
+  └──────────────────────────────┘ └──────────────┘
 */
-.dash-grid{display:grid;grid-template-columns:1fr 310px;gap:16px;margin-bottom:16px;align-items:start}
+.dash-outer{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;margin-bottom:16px}
+.dash-left{display:flex;flex-direction:column;gap:16px;min-width:0}
+.pies-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 
 /* PANEL */
 .panel{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:18px}
@@ -200,8 +210,8 @@ tr.pr{background:rgba(74,222,128,.03)}
 .ri-right{display:flex;align-items:center;gap:10px}
 .ri-act{display:flex;gap:2px;opacity:0;transition:opacity .15s}.ri:hover .ri-act{opacity:1}
 
-/* RECURRING IN DASHBOARD */
-.rec-dash-list{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto}
+/* CONTAS FIXAS NO DASH */
+.rec-dash-list{display:flex;flex-direction:column;gap:6px;max-height:600px;overflow-y:auto;padding-right:2px}
 .rdi{display:flex;align-items:center;justify-content:space-between;background:var(--s2);border:1px solid var(--b2);border-radius:9px;padding:10px 12px;transition:border-color .2s}
 .rdi.paid{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.04)}
 .rdi.overdue{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.04)}
@@ -209,7 +219,7 @@ tr.pr{background:rgba(74,222,128,.03)}
 .rdi-left{display:flex;align-items:center;gap:9px;flex:1;min-width:0}
 .rdi-nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rdi-sub{font-size:12px;color:var(--muted2);margin-top:1px}
-.rdi-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.rdi-right{display:flex;align-items:center;gap:7px;flex-shrink:0}
 
 /* BY ACCOUNT */
 .acc-item{background:var(--s2);border:1px solid var(--b2);border-radius:10px;padding:11px 13px;margin-bottom:6px}
@@ -227,8 +237,8 @@ tr.pr{background:rgba(74,222,128,.03)}
 .mi-exp{background:rgba(248,113,113,.12);color:var(--red);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
 .g2b{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
-@media(max-width:1100px){.dash-grid{grid-template-columns:1fr}}
-@media(max-width:1024px){.sum-grid{grid-template-columns:1fr 1fr}.g2b{grid-template-columns:1fr}}
+@media(max-width:1100px){.dash-outer{grid-template-columns:1fr}.pies-row{grid-template-columns:1fr 1fr}}
+@media(max-width:1024px){.sum-grid{grid-template-columns:1fr 1fr}.g2b{grid-template-columns:1fr}.pies-row{grid-template-columns:1fr}}
 @media(max-width:560px){.sum-grid{grid-template-columns:1fr}}
 `
 
@@ -246,17 +256,11 @@ function RecBadge({ status }: { status: string }) {
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 function RecurringModal({ initial, categories, onSave, onClose }: { initial?:RecurringItem|null; categories:any[]; onSave:(d:any)=>void; onClose:()=>void }) {
-  const [name,setName]=useState(initial?.name??"")
-  const [amount,setAmount]=useState(initial?String(initial.amount):"")
-  const [dueDay,setDueDay]=useState(initial?.due_day?String(initial.due_day):"")
-  const [icon,setIcon]=useState(initial?.icon??"📄")
-  const [catId,setCatId]=useState(initial?.category_id?String(initial.category_id):"")
-  const [active,setActive]=useState(initial?.active??true)
-  const [isVar,setIsVar]=useState(initial?.is_variable??false)
-
+  const [name,setName]=useState(initial?.name??""); const [amount,setAmount]=useState(initial?String(initial.amount):"")
+  const [dueDay,setDueDay]=useState(initial?.due_day?String(initial.due_day):""); const [icon,setIcon]=useState(initial?.icon??"📄")
+  const [catId,setCatId]=useState(initial?.category_id?String(initial.category_id):""); const [active,setActive]=useState(initial?.active??true); const [isVar,setIsVar]=useState(initial?.is_variable??false)
   function save(e:any){
-    e.preventDefault()
-    if(!name||!amount){alert("Preencha nome e valor");return}
+    e.preventDefault(); if(!name||!amount){alert("Preencha nome e valor");return}
     if(!isVar&&!dueDay){alert("Informe o dia de vencimento para contas fixas");return}
     onSave({name,amount:Number(amount),due_day:dueDay?Number(dueDay):null,icon,category_id:catId?Number(catId):null,active,is_variable:isVar})
   }
@@ -267,21 +271,21 @@ function RecurringModal({ initial, categories, onSave, onClose }: { initial?:Rec
         <form onSubmit={save}>
           <div style={{marginBottom:14}}><span className="fl">Ícone</span><div className="ico-grid">{ICON_OPTIONS.map(ic=><button key={ic} type="button" className={`ico-opt ${icon===ic?"sel":""}`} onClick={()=>setIcon(ic)}>{ic}</button>)}</div></div>
           <div className="fr" style={{marginBottom:12}}>
-            <div style={{flex:2,minWidth:150}}><span className="fl">Nome</span><input placeholder="Ex: Luz, Netflix, Combustível" value={name} onChange={e=>setName(e.target.value)} /></div>
-            <div style={{flex:1,minWidth:90}}><span className="fl">Valor atual</span><input type="number" placeholder="0,00" value={amount} onChange={e=>setAmount(e.target.value)} /></div>
+            <div style={{flex:2,minWidth:150}}><span className="fl">Nome</span><input placeholder="Ex: Luz, Netflix, Combustível" value={name} onChange={e=>setName(e.target.value)}/></div>
+            <div style={{flex:1,minWidth:90}}><span className="fl">Valor atual</span><input type="number" placeholder="0,00" value={amount} onChange={e=>setAmount(e.target.value)}/></div>
           </div>
           <div style={{background:"var(--s2)",border:"1px solid var(--b2)",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-              <input type="checkbox" id="var-chk" checked={isVar} onChange={e=>setIsVar(e.target.checked)} style={{width:"auto",cursor:"pointer"}} />
+              <input type="checkbox" id="var-chk" checked={isVar} onChange={e=>setIsVar(e.target.checked)} style={{width:"auto",cursor:"pointer"}}/>
               <label htmlFor="var-chk" style={{fontSize:13,cursor:"pointer",fontWeight:500}}>Valor variável (muda todo mês)</label>
             </div>
             <div style={{fontSize:12,color:"var(--muted2)"}}>{isVar?"Informe o valor pago no dashboard todo mês. Dia de vencimento é opcional.":"Valor fixo todo mês. Dia de vencimento obrigatório."}</div>
           </div>
           <div className="fr" style={{marginBottom:12}}>
-            <div><span className="fl">Dia de vencimento {isVar?"(opcional)":"(obrigatório)"}</span><input type="number" min="1" max="31" placeholder={isVar?"Ex: 10 (se tiver)":"Ex: 10"} value={dueDay} onChange={e=>setDueDay(e.target.value)} /></div>
+            <div><span className="fl">Dia de vencimento {isVar?"(opcional)":"(obrigatório)"}</span><input type="number" min="1" max="31" placeholder={isVar?"Ex: 10 (se tiver)":"Ex: 10"} value={dueDay} onChange={e=>setDueDay(e.target.value)}/></div>
             <div><span className="fl">Categoria</span><select value={catId} onChange={e=>setCatId(e.target.value)}><option value="">Sem categoria</option>{categories.filter(c=>c.type==="expense").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:10}}><input type="checkbox" id="act-chk" checked={active} onChange={e=>setActive(e.target.checked)} style={{width:"auto",cursor:"pointer"}} /><label htmlFor="act-chk" style={{fontSize:13,color:"var(--muted2)",cursor:"pointer"}}>Conta ativa</label></div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}><input type="checkbox" id="act-chk" checked={active} onChange={e=>setActive(e.target.checked)} style={{width:"auto",cursor:"pointer"}}/><label htmlFor="act-chk" style={{fontSize:13,color:"var(--muted2)",cursor:"pointer"}}>Conta ativa</label></div>
           <div className="mf"><button type="button" className="btn bs" onClick={onClose}>Cancelar</button><button type="submit" className="btn bp">Salvar</button></div>
         </form>
       </div>
@@ -296,7 +300,7 @@ function EditInstModal({ initial, onSave, onClose }: { initial:InstallmentSummar
       <div className="modal">
         <div className="mt">Editar dívida</div>
         <form onSubmit={e=>{e.preventDefault();onSave({description:desc,debt_type:dt,total_amount:Number(total)})}}>
-          <div style={{marginBottom:12}}><span className="fl">Descrição</span><input value={desc} onChange={e=>setDesc(e.target.value)} /></div>
+          <div style={{marginBottom:12}}><span className="fl">Descrição</span><input value={desc} onChange={e=>setDesc(e.target.value)}/></div>
           <div style={{marginBottom:12}}><span className="fl">Tipo</span>
             <div className="dt-grid" style={{marginTop:8}}>
               {Object.entries(DEBT_CFG).map(([k,cfg])=>(
@@ -307,7 +311,7 @@ function EditInstModal({ initial, onSave, onClose }: { initial:InstallmentSummar
               ))}
             </div>
           </div>
-          <div style={{marginBottom:12}}><span className="fl">Valor total</span><input type="number" value={total} onChange={e=>setTotal(e.target.value)} /></div>
+          <div style={{marginBottom:12}}><span className="fl">Valor total</span><input type="number" value={total} onChange={e=>setTotal(e.target.value)}/></div>
           <div className="mf"><button type="button" className="btn bs" onClick={onClose}>Cancelar</button><button type="submit" className="btn bp">Salvar</button></div>
         </form>
       </div>
@@ -323,17 +327,16 @@ function ManageModal({ title, items, itemType, onCreate, onUpdate, onDelete, onC
       <div className="modal">
         <div className="mt">{title}</div>
         <div style={{background:"var(--s2)",border:"1px solid var(--b2)",borderRadius:10,padding:12,marginBottom:12}}>
-          <div className="fr" style={{marginBottom:8}}><input placeholder="Nome" value={nn} onChange={e=>setNn(e.target.value)} />{itemType==="category"&&<select value={nt} onChange={e=>setNt(e.target.value)} style={{maxWidth:130}}><option value="expense">Despesa</option><option value="income">Receita</option></select>}</div>
+          <div className="fr" style={{marginBottom:8}}><input placeholder="Nome" value={nn} onChange={e=>setNn(e.target.value)}/>{itemType==="category"&&<select value={nt} onChange={e=>setNt(e.target.value)} style={{maxWidth:130}}><option value="expense">Despesa</option><option value="income">Receita</option></select>}</div>
           <button className="btn bp bsm" onClick={()=>{if(!nn.trim())return;onCreate(itemType==="category"?{name:nn,type:nt}:{name:nn});setNn("");setNt("expense")}}>+ Adicionar</button>
         </div>
         <div style={{maxHeight:320,overflowY:"auto"}}>
           {items.map(item=>(
             <div key={item.id} className="manage-item">
-              {ei===item.id?(
-                <div style={{display:"flex",gap:6,flex:1,marginRight:6}}><input value={en} onChange={e=>setEn(e.target.value)} style={{flex:2}} />{itemType==="category"&&<select value={et} onChange={e=>setEt(e.target.value)} style={{flex:1,maxWidth:120}}><option value="expense">Despesa</option><option value="income">Receita</option></select>}<button className="btn bp bsm" onClick={()=>{onUpdate(item.id,itemType==="category"?{name:en,type:et}:{name:en});setEi(null)}}>✓</button><button className="btn bs bsm" onClick={()=>setEi(null)}>✕</button></div>
-              ):(
-                <><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:500,fontSize:14}}>{item.name}</span>{itemType==="category"&&<span className={item.type==="income"?"mi-inc":"mi-exp"}>{item.type==="income"?"receita":"despesa"}</span>}</div><div style={{display:"flex",gap:2}}><button className="be" onClick={()=>{setEi(item.id);setEn(item.name);setEt(item.type||"expense")}}>✏️</button><button className="bd" onClick={()=>{if(confirm(`Remover "${item.name}"?`))onDelete(item.id)}}>🗑</button></div></>
-              )}
+              {ei===item.id
+                ? <div style={{display:"flex",gap:6,flex:1,marginRight:6}}><input value={en} onChange={e=>setEn(e.target.value)} style={{flex:2}}/>{itemType==="category"&&<select value={et} onChange={e=>setEt(e.target.value)} style={{flex:1,maxWidth:120}}><option value="expense">Despesa</option><option value="income">Receita</option></select>}<button className="btn bp bsm" onClick={()=>{onUpdate(item.id,itemType==="category"?{name:en,type:et}:{name:en});setEi(null)}}>✓</button><button className="btn bs bsm" onClick={()=>setEi(null)}>✕</button></div>
+                : <><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:500,fontSize:14}}>{item.name}</span>{itemType==="category"&&<span className={item.type==="income"?"mi-inc":"mi-exp"}>{item.type==="income"?"receita":"despesa"}</span>}</div><div style={{display:"flex",gap:2}}><button className="be" onClick={()=>{setEi(item.id);setEn(item.name);setEt(item.type||"expense")}}>✏️</button><button className="bd" onClick={()=>{if(confirm(`Remover "${item.name}"?`))onDelete(item.id)}}>🗑</button></div></>
+              }
             </div>
           ))}
         </div>
@@ -350,7 +353,7 @@ function PayRecurringModal({ item, accounts, year, month, onPay, onClose }: { it
     <div className="mbg" onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
       <div className="modal">
         <div className="mt">{item.icon} {item.name}</div>
-        <div style={{marginBottom:12}}><span className="fl">Valor pago este mês</span><input type="number" value={payAmt} onChange={e=>setPayAmt(e.target.value)} /></div>
+        <div style={{marginBottom:12}}><span className="fl">Valor pago este mês</span><input type="number" value={payAmt} onChange={e=>setPayAmt(e.target.value)}/></div>
         <div style={{marginBottom:16}}><span className="fl">Conta debitada</span><select value={accId} onChange={e=>setAccId(e.target.value)}><option value="">Selecione</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
         <div className="mf"><button className="btn bs" onClick={onClose}>Cancelar</button><button className="btn bp" onClick={()=>{if(!accId){alert("Selecione a conta");return};onPay({year,month,amount:Number(payAmt),account_id:Number(accId)})}}>✅ Confirmar</button></div>
       </div>
@@ -363,19 +366,13 @@ export default function App() {
   const now = new Date()
   const [page,setPage]=useState<"dashboard"|"debts"|"fixed"|"settings">("dashboard")
   const [viewMode,setViewMode]=useState<"month"|"year">("month")
-  const [year,setYear]=useState(now.getFullYear())
-  const [month,setMonth]=useState(now.getMonth()+1)
+  const [year,setYear]=useState(now.getFullYear()); const [month,setMonth]=useState(now.getMonth()+1)
 
-  const [expenses,setExpenses]=useState<any[]>([])
-  const [income,setIncome]=useState<any[]>([])
-  const [summary,setSummary]=useState<any>(null)
-  const [categories,setCategories]=useState<any[]>([])
-  const [accounts,setAccounts]=useState<any[]>([])
-  const [catSummary,setCatSummary]=useState<any[]>([])
-  const [monthlyData,setMonthlyData]=useState<any[]>([])
-  const [accSummary,setAccSummary]=useState<any[]>([])
-  const [installments,setInstallments]=useState<InstallmentSummary[]>([])
-  const [recurringItems,setRecurringItems]=useState<RecurringItem[]>([])
+  const [expenses,setExpenses]=useState<any[]>([]); const [income,setIncome]=useState<any[]>([])
+  const [summary,setSummary]=useState<any>(null); const [categories,setCategories]=useState<any[]>([])
+  const [accounts,setAccounts]=useState<any[]>([]); const [catSummary,setCatSummary]=useState<any[]>([])
+  const [monthlyData,setMonthlyData]=useState<any[]>([]); const [accSummary,setAccSummary]=useState<any[]>([])
+  const [installments,setInstallments]=useState<InstallmentSummary[]>([]); const [recurringItems,setRecurringItems]=useState<RecurringItem[]>([])
   const [recurringMonth,setRecurringMonth]=useState<RecurringMonthItem[]>([])
 
   const [desc,setDesc]=useState(""); const [amt,setAmt]=useState(""); const [txType,setTxType]=useState("expense")
@@ -383,9 +380,7 @@ export default function App() {
   const [activeTab,setActiveTab]=useState<"expense"|"income">("expense")
   const [editAmtId,setEditAmtId]=useState<number|null>(null); const [editAmtVal,setEditAmtVal]=useState("")
 
-  const [showDebt,setShowDebt]=useState(false)
-  const [debtType,setDebtType]=useState("parcelamento")
-  // item 5: modo simplificado — valor total + nº parcelas + valor mensal (manual, para cobrir juros)
+  const [showDebt,setShowDebt]=useState(false); const [debtType,setDebtType]=useState("parcelamento")
   const [useManualMonthly,setUseManualMonthly]=useState(false)
   const [inst,setInst]=useState({description:"",total_amount:"",total_installments:"",monthly_amount:"",start_date:now.toISOString().slice(0,10)})
   const [instCatId,setInstCatId]=useState(""); const [instAccId,setInstAccId]=useState(""); const [submitting,setSubmitting]=useState(false)
@@ -401,86 +396,69 @@ export default function App() {
   useEffect(()=>{loadAll()},[year,month,viewMode])
 
   async function loadAll(){
-    const [exp,inc,s,c,cs,ms,a,is_,rec,recM,as_] = await Promise.all([
-      getTransactions("expense",filters), getTransactions("income",filters),
-      getSummary(filters), getCategories(), getCategorySummary(filters),
+    const [exp,inc,s,c,cs,ms,a,is_,rec,recM,as_]=await Promise.all([
+      getTransactions("expense",filters),getTransactions("income",filters),
+      getSummary(filters),getCategories(),getCategorySummary(filters),
       getMonthlySummary(year,viewMode==="month"?month:undefined),
-      getAccounts(), getInstallmentsSummary(), getRecurring(),
+      getAccounts(),getInstallmentsSummary(),getRecurring(),
       getRecurringForMonth(year,viewMode==="month"?month:now.getMonth()+1),
       getAccountSummary(filters)
     ])
-    setExpenses(enrichExpenses(exp,rec)); setIncome(inc); setSummary(s)
-    setCategories(c); setCatSummary(cs); setMonthlyData(ms)
-    setAccounts(a); setInstallments(is_); setRecurringItems(rec)
-    setRecurringMonth(recM); setAccSummary(as_)
+    setExpenses(enrichExpenses(exp,rec));setIncome(inc);setSummary(s)
+    setCategories(c);setCatSummary(cs);setMonthlyData(ms)
+    setAccounts(a);setInstallments(is_);setRecurringItems(rec)
+    setRecurringMonth(recM);setAccSummary(as_)
   }
 
   function prevPeriod(){if(viewMode==="month"){if(month===1){setMonth(12);setYear(y=>y-1)}else setMonth(m=>m-1)}else setYear(y=>y-1)}
   function nextPeriod(){if(viewMode==="month"){if(month===12){setMonth(1);setYear(y=>y+1)}else setMonth(m=>m+1)}else setYear(y=>y+1)}
-  const periodLabel = viewMode==="month"?`${MONTHS_PT[month-1]} ${year}`:`${year}`
+  const periodLabel=viewMode==="month"?`${MONTHS_PT[month-1]} ${year}`:`${year}`
 
   async function handleSubmit(e:any){
-    e.preventDefault(); if(!desc||!amt||!catId||!accId){alert("Preencha todos os campos");return}
+    e.preventDefault();if(!desc||!amt||!catId||!accId){alert("Preencha todos os campos");return}
     await createTransaction({description:desc,amount:parseFloat(amt),type:txType,category_id:Number(catId),account_id:Number(accId),date:txDate})
     setDesc("");setAmt("");setTxType("expense");setCatId("");setAccId("");loadAll()
   }
 
   async function handleDebtSubmit(e:any){
-    e.preventDefault(); if(submitting)return
+    e.preventDefault();if(submitting)return
     if(!inst.description||!inst.total_amount||!inst.total_installments||!instCatId||!instAccId){alert("Preencha todos os campos");return}
     setSubmitting(true)
     try{
-      // item 5: se useManualMonthly, usa monthly_amount para gerar parcelas com valor manual
-      const totalAmt = Number(inst.total_amount)
-      const nParcelas = Number(inst.total_installments)
-      const monthlyAmt = useManualMonthly && inst.monthly_amount ? Number(inst.monthly_amount) : totalAmt / nParcelas
-
-      // Gera parcelas com valor mensal manual via createInstallmentCustom
-      const installments_data = Array.from({length: nParcelas}, (_, i) => {
-        const d = new Date(inst.start_date)
-        d.setMonth(d.getMonth() + i)
-        return { amount: monthlyAmt, date: d.toISOString().slice(0,10) }
+      const tot=Number(inst.total_amount),n=Number(inst.total_installments)
+      const monthly=useManualMonthly&&inst.monthly_amount?Number(inst.monthly_amount):tot/n
+      const installments_data=Array.from({length:n},(_,i)=>{
+        const d=new Date(inst.start_date);d.setMonth(d.getMonth()+i)
+        return {amount:monthly,date:d.toISOString().slice(0,10)}
       })
-
-      await createInstallmentCustom({
-        description: inst.description,
-        debt_type: debtType,
-        category_id: Number(instCatId),
-        account_id: Number(instAccId),
-        installments: installments_data,
-      })
-
+      await createInstallmentCustom({description:inst.description,debt_type:debtType,category_id:Number(instCatId),account_id:Number(instAccId),installments:installments_data})
       setInst({description:"",total_amount:"",total_installments:"",monthly_amount:"",start_date:now.toISOString().slice(0,10)})
       setInstCatId("");setInstAccId("");setShowDebt(false);setUseManualMonthly(false);loadAll()
     }finally{setSubmitting(false)}
   }
 
-  const filteredInst = debtFilter==="todos"?installments:installments.filter(i=>i.debt_type===debtFilter)
+  const filteredInst=debtFilter==="todos"?installments:installments.filter(i=>i.debt_type===debtFilter)
   const totalDebt=filteredInst.reduce((a,i)=>a+i.total_remaining,0)
   const totalMonthlyInst=filteredInst.filter(i=>i.pending_installments>0).reduce((a,i)=>a+i.value_per_installment,0)
-  const activeInst=filteredInst.filter(i=>i.pending_installments>0)
-  const doneInst=filteredInst.filter(i=>i.pending_installments===0)
+  const activeInst=filteredInst.filter(i=>i.pending_installments>0); const doneInst=filteredInst.filter(i=>i.pending_installments===0)
   const getCN=(id:number)=>categories.find(c=>c.id===id)?.name??"-"
   const getAN=(id:number)=>accounts.find(a=>a.id===id)?.name??"-"
   const recTotal=recurringItems.filter(r=>r.active).reduce((a,r)=>a+r.amount,0)
   const today=now.toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})
 
-  const typePieData = (() => {
-    const counts: Record<string,number>={}
-    for(const t of expenses){ const k=getTxKind(t).label; counts[k]=(counts[k]||0)+t.amount }
-    return Object.entries(counts).map(([name,value])=>({name,value}))
+  const typePieData=(()=>{
+    const c:Record<string,number>={};for(const t of expenses){const k=getTxKind(t).label;c[k]=(c[k]||0)+t.amount}
+    return Object.entries(c).map(([name,value])=>({name,value}))
   })()
 
-  // computed installment value preview
-  const instPreview = (() => {
-    const tot = Number(inst.total_amount); const n = Number(inst.total_installments)
-    if(!tot||!n) return null
-    const auto = tot/n
-    const manual = useManualMonthly&&inst.monthly_amount ? Number(inst.monthly_amount) : null
-    return { auto, manual, diff: manual ? manual-auto : null }
+  const instPreview=(()=>{
+    const tot=Number(inst.total_amount),n=Number(inst.total_installments)
+    if(!tot||!n)return null
+    const auto=tot/n; const manual=useManualMonthly&&inst.monthly_amount?Number(inst.monthly_amount):null
+    return {auto,manual,diff:manual?manual-auto:null}
   })()
 
-  const PeriodNav = () => (
+  const PeriodNav=()=>(
     <div className="period-row">
       <div className="pnav"><button className="parr" onClick={prevPeriod}>‹</button><span className="plbl">{periodLabel}</span><button className="parr" onClick={nextPeriod}>›</button></div>
       <div className="vtog"><button className={`vtbtn ${viewMode==="month"?"on":""}`} onClick={()=>setViewMode("month")}>Mensal</button><button className={`vtbtn ${viewMode==="year"?"on":""}`} onClick={()=>setViewMode("year")}>Anual</button></div>
@@ -503,7 +481,7 @@ export default function App() {
         {/* ══ DASHBOARD ══════════════════════════════════════════════════════ */}
         {page==="dashboard"&&(
           <>
-            <PeriodNav />
+            <PeriodNav/>
             {summary&&(
               <div className="sum-grid">
                 <div className="sc c-inc"><div className="sc-lbl">Receitas</div><div className="sc-val g">{fmt(summary.total_income)}</div><div className="sc-sub">{periodLabel}</div><div className="sc-ico">↑</div></div>
@@ -513,19 +491,22 @@ export default function App() {
               </div>
             )}
 
-            {/* ROW 1: form+evolução | pizza+fixas — grid alinhado pelo topo */}
-            <div className="dash-grid">
+            {/* OUTER GRID: left col (tudo exceto fixas) | right col (fixas) */}
+            <div className="dash-outer">
+
               {/* LEFT */}
-              <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              <div className="dash-left">
+
+                {/* Nova transação */}
                 <div className="panel">
                   <div className="ph"><div className="pt">Nova transação</div></div>
                   <form onSubmit={handleSubmit}>
                     <div className="fr">
-                      <input style={{flex:2,minWidth:130}} type="text" placeholder="Descrição" value={desc} onChange={e=>setDesc(e.target.value)} />
-                      <input style={{flex:1,minWidth:80}} type="number" placeholder="Valor" value={amt} onChange={e=>setAmt(e.target.value)} />
+                      <input style={{flex:2,minWidth:130}} type="text" placeholder="Descrição" value={desc} onChange={e=>setDesc(e.target.value)}/>
+                      <input style={{flex:1,minWidth:80}} type="number" placeholder="Valor" value={amt} onChange={e=>setAmt(e.target.value)}/>
                     </div>
                     <div className="fr">
-                      <input type="date" value={txDate} onChange={e=>setTxDate(e.target.value)} />
+                      <input type="date" value={txDate} onChange={e=>setTxDate(e.target.value)}/>
                       <select value={txType} onChange={e=>{setTxType(e.target.value);setCatId("")}}><option value="expense">Despesa</option><option value="income">Receita</option></select>
                       <select value={catId} onChange={e=>setCatId(e.target.value)}><option value="">Categoria</option>{categories.filter(c=>c.type===txType).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
                       <select value={accId} onChange={e=>setAccId(e.target.value)}><option value="">Conta</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>
@@ -533,10 +514,12 @@ export default function App() {
                     </div>
                   </form>
                 </div>
+
+                {/* Evolução */}
                 <div className="panel">
                   <div className="ph"><div><div className="pt">Evolução</div><div className="ps">{viewMode==="year"?`Todos os meses de ${year}`:periodLabel}</div></div></div>
                   {monthlyData.length>0?(
-                    <ResponsiveContainer width="100%" height={230}>
+                    <ResponsiveContainer width="100%" height={220}>
                       <AreaChart data={monthlyData}>
                         <defs>
                           <linearGradient id="gi" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4ade80" stopOpacity={.25}/><stop offset="95%" stopColor="#4ade80" stopOpacity={0}/></linearGradient>
@@ -551,25 +534,121 @@ export default function App() {
                         <Area type="monotone" dataKey="expense" name="Despesa" stroke="#f87171" fill="url(#ge)" strokeWidth={2} dot={false}/>
                       </AreaChart>
                     </ResponsiveContainer>
-                  ):<div style={{color:"var(--muted2)",fontSize:13,textAlign:"center",padding:36}}>Sem dados para o período.</div>}
+                  ):<div style={{color:"var(--muted2)",fontSize:13,textAlign:"center",padding:32}}>Sem dados para o período.</div>}
+                </div>
+
+                {/* Pizzas: Por categoria | Por tipo | Por conta — 3 colunas */}
+                {(catSummary.length>0||typePieData.length>0||accSummary.length>0)&&(
+                  <div className="pies-row">
+                    {/* Por categoria */}
+                    <div className="panel">
+                      <div className="ph"><div><div className="pt">Por categoria</div><div className="ps">{periodLabel}</div></div></div>
+                      {catSummary.length>0?(
+                        <PieChart width={220} height={200}>
+                          <Pie data={catSummary} dataKey="total" nameKey="category" cx="50%" cy="50%" outerRadius={72} innerRadius={30}>{catSummary.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie>
+                          <Tooltip formatter={(v:any)=>fmt(v)} contentStyle={{background:"#0f0f1a",border:"1px solid #ffffff15",borderRadius:10,fontSize:12}}/>
+                          <Legend iconType="circle" iconSize={7} wrapperStyle={{fontSize:11}}/>
+                        </PieChart>
+                      ):<div style={{color:"var(--muted2)",fontSize:12,textAlign:"center",paddingTop:24}}>Sem dados.</div>}
+                    </div>
+
+                    {/* Por tipo */}
+                    <div className="panel">
+                      <div className="ph"><div><div className="pt">Por tipo</div><div className="ps">despesas</div></div></div>
+                      {typePieData.length>0?(
+                        <PieChart width={220} height={200}>
+                          <Pie data={typePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={72} innerRadius={30}>{typePieData.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie>
+                          <Tooltip formatter={(v:any)=>fmt(v)} contentStyle={{background:"#0f0f1a",border:"1px solid #ffffff15",borderRadius:10,fontSize:12}}/>
+                          <Legend iconType="circle" iconSize={7} wrapperStyle={{fontSize:11}}/>
+                        </PieChart>
+                      ):<div style={{color:"var(--muted2)",fontSize:12,textAlign:"center",paddingTop:24}}>Sem dados.</div>}
+                    </div>
+
+                    {/* Por conta */}
+                    <div className="panel">
+                      <div className="ph"><div><div className="pt">Por conta</div><div className="ps">{periodLabel}</div></div></div>
+                      {accSummary.length>0?(
+                        accSummary.map((a:any)=>(
+                          <div key={a.name} className="acc-item">
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                              <span style={{fontWeight:600,fontSize:13}}>{a.name}</span>
+                              <span style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:14,fontWeight:700,color:a.balance>=0?"var(--green)":"var(--red)"}}>{fmt(a.balance)}</span>
+                            </div>
+                            <div style={{display:"flex",gap:12}}><span style={{fontSize:12,color:"var(--muted2)"}}>↑ {fmt(a.income)}</span><span style={{fontSize:12,color:"var(--muted2)"}}>↓ {fmt(a.expense)}</span></div>
+                          </div>
+                        ))
+                      ):<div style={{color:"var(--muted2)",fontSize:12,textAlign:"center",paddingTop:24}}>Sem dados.</div>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista de despesas/receitas */}
+                <div className="panel">
+                  <div className="ph">
+                    <div className="tabs">
+                      <button className={`tb ${activeTab==="expense"?"on":""}`} onClick={()=>setActiveTab("expense")}>Despesas</button>
+                      <button className={`tb ${activeTab==="income"?"on":""}`} onClick={()=>setActiveTab("income")}>Receitas</button>
+                    </div>
+                    {/* item 3: contador simples, sem data */}
+                    <span className="bc">{activeTab==="expense"?expenses.length:income.length} registros</span>
+                  </div>
+                  <div className="tw">
+                    {activeTab==="expense"&&(
+                      expenses.length===0
+                        ?<div style={{color:"var(--muted2)",fontSize:13,textAlign:"center",padding:"22px 0"}}>Nenhuma despesa em {periodLabel}.</div>
+                        :<table><thead><tr><th>Descrição</th><th>Tipo</th><th>Categoria</th><th>Conta</th><th>Data</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+                        <tbody>{expenses.map(t=>{
+                          const kind=getTxKind(t)
+                          const displayName=(t.description??"").replace(/^\[FIXA:\d+\]\s*/,"")
+                          const isConsig=t.debt_type==="emprestimo_consignado"
+                          // ✅ item 2: contas fixas pagas NÃO têm edição de valor
+                          const isFixa=t.is_fixa===true
+                          return (
+                            <tr key={t.id} className={t.paid&&t.installment_id?"pr":""}>
+                              <td style={{fontWeight:500}}>{displayName}</td>
+                              <td><span className="badge" style={{background:kind.bg,color:kind.color}}>{kind.label}</span></td>
+                              <td style={{color:"var(--muted2)",fontSize:12}}>{getCN(t.category_id)}</td>
+                              <td style={{color:"var(--muted2)",fontSize:12}}>{getAN(t.account_id)}</td>
+                              <td style={{color:"var(--muted2)",fontSize:12}}>{fmtDate(t.date)}</td>
+                              <td>
+                                {isConsig||isFixa
+                                  ? <span className="badge b-e">{fmt(t.amount)}</span>
+                                  : editAmtId===t.id
+                                    ? <div className="amt-edit"><input className="amt-input" type="number" value={editAmtVal} onChange={e=>setEditAmtVal(e.target.value)} autoFocus/><button className="btn bp bsm" onClick={async()=>{await updateTransactionAmount(t.id,Number(editAmtVal));setEditAmtId(null);loadAll()}}>✓</button><button className="btn bs bsm" onClick={()=>setEditAmtId(null)}>✕</button></div>
+                                    : <div style={{display:"flex",alignItems:"center",gap:5}}><span className="badge b-e">{fmt(t.amount)}</span><button className="be" title="Editar valor" onClick={()=>{setEditAmtId(t.id);setEditAmtVal(String(t.amount))}}>✏️</button></div>
+                                }
+                              </td>
+                              <td>
+                                {isConsig
+                                  ? <span className="badge b-prog">📋 programado</span>
+                                  : t.installment_id
+                                    ? <button className="pb" onClick={async()=>{await markTransactionPaid(t.id,!t.paid);loadAll()}}>{t.paid?"✅":"⏳"}</button>
+                                    : <span className="badge b-ok">✓ pago</span>
+                                }
+                              </td>
+                              <td>
+                                {/* item 2: ao apagar uma fixa, ela volta como "não paga" no dashboard */}
+                                {!isConsig&&<button className="bd" onClick={()=>{deleteTransaction(t.id);loadAll()}}>🗑</button>}
+                              </td>
+                            </tr>
+                          )
+                        })}</tbody></table>
+                    )}
+                    {activeTab==="income"&&(
+                      income.length===0
+                        ?<div style={{color:"var(--muted2)",fontSize:13,textAlign:"center",padding:"22px 0"}}>Nenhuma receita em {periodLabel}.</div>
+                        :<table><thead><tr><th>Descrição</th><th>Categoria</th><th>Conta</th><th>Data</th><th>Valor</th><th></th></tr></thead>
+                        <tbody>{income.map(t=>(
+                          <tr key={t.id}><td style={{fontWeight:500}}>{t.description}</td><td style={{color:"var(--muted2)",fontSize:12}}>{getCN(t.category_id)}</td><td style={{color:"var(--muted2)",fontSize:12}}>{getAN(t.account_id)}</td><td style={{color:"var(--muted2)",fontSize:12}}>{fmtDate(t.date)}</td><td><span className="badge b-i">{fmt(t.amount)}</span></td><td><button className="bd" onClick={()=>{deleteTransaction(t.id);loadAll()}}>🗑</button></td></tr>
+                        ))}</tbody></table>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* RIGHT — pizza + contas fixas (tamanho natural, sem forçar altura) */}
-              <div style={{display:"flex",flexDirection:"column",gap:16}}>
-                <div className="panel">
-                  <div className="ph"><div><div className="pt">Por categoria</div><div className="ps">{periodLabel}</div></div></div>
-                  {catSummary.length>0?(
-                    <PieChart width={270} height={220}>
-                      <Pie data={catSummary} dataKey="total" nameKey="category" cx="50%" cy="50%" outerRadius={85} innerRadius={38}>{catSummary.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie>
-                      <Tooltip formatter={(v:any)=>fmt(v)} contentStyle={{background:"#0f0f1a",border:"1px solid #ffffff15",borderRadius:10,fontSize:12}}/>
-                      <Legend iconType="circle" iconSize={7} wrapperStyle={{fontSize:12}}/>
-                    </PieChart>
-                  ):<div style={{color:"var(--muted2)",fontSize:13,textAlign:"center",paddingTop:30}}>Sem dados.</div>}
-                </div>
-
-                {/* CONTAS FIXAS DO MÊS */}
-                {recurringMonth.length>0&&viewMode==="month"&&(
+              {/* RIGHT: contas fixas — ocupa toda a lateral direita */}
+              <div>
+                {recurringMonth.length>0&&viewMode==="month"?(
                   <div className="panel">
                     <div className="ph"><div><div className="pt">Contas fixas</div><div className="ps">{periodLabel}</div></div><span className="bc">{recurringMonth.filter(r=>r.paid).length}/{recurringMonth.length} pagas</span></div>
                     <div className="rec-dash-list">
@@ -591,105 +670,16 @@ export default function App() {
                               ? <button className="be" title="Desmarcar" onClick={async()=>{await unpayRecurring(item.id,{year,month});loadAll()}}>✕</button>
                               : item.is_variable
                                 ? <button className="btn bp bsm" onClick={()=>setPayingRec(item)}>Pagar</button>
-                                : <button className="btn bp bsm" onClick={()=>{
-                                    const defAcc=accounts[0]?.id
-                                    if(!defAcc){alert("Cadastre uma conta primeiro");return}
-                                    payRecurring(item.id,{year,month,amount:item.amount,account_id:defAcc}).then(()=>loadAll())
-                                  }}>Pagar</button>
+                                : <button className="btn bp bsm" onClick={()=>{const defAcc=accounts[0]?.id;if(!defAcc){alert("Cadastre uma conta");return};payRecurring(item.id,{year,month,amount:item.amount,account_id:defAcc}).then(()=>loadAll())}}>Pagar</button>
                             }
                           </div>
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* ROW 2: tabela despesas (grande esq) | pizza tipos + por conta (pequena dir) */}
-            <div className="dash-grid">
-              {/* TABELA */}
-              <div className="panel">
-                <div className="ph">
-                  <div className="tabs"><button className={`tb ${activeTab==="expense"?"on":""}`} onClick={()=>setActiveTab("expense")}>Despesas</button><button className={`tb ${activeTab==="income"?"on":""}`} onClick={()=>setActiveTab("income")}>Receitas</button></div>
-                  <span className="bc">{activeTab==="expense"?expenses.length:income.length} · {periodLabel}</span>
-                </div>
-                <div className="tw">
-                  {activeTab==="expense"&&(
-                    expenses.length===0
-                      ?<div style={{color:"var(--muted2)",fontSize:13,textAlign:"center",padding:"22px 0"}}>Nenhuma despesa em {periodLabel}.</div>
-                      :<table><thead><tr><th>Descrição</th><th>Tipo</th><th>Categoria</th><th>Conta</th><th>Data</th><th>Valor</th><th>Status</th><th></th></tr></thead>
-                      <tbody>{expenses.map(t=>{
-                        const kind=getTxKind(t)
-                        const displayName=(t.description??"").replace(/^\[FIXA:\d+\]\s*/,"")
-                        const isConsig = t.debt_type==="emprestimo_consignado"
-                        return (
-                          <tr key={t.id} className={t.paid&&t.installment_id?"pr":""}>
-                            <td style={{fontWeight:500}}>{displayName}</td>
-                            <td><span className="badge" style={{background:kind.bg,color:kind.color}}>{kind.label}</span></td>
-                            <td style={{color:"var(--muted2)",fontSize:12}}>{getCN(t.category_id)}</td>
-                            <td style={{color:"var(--muted2)",fontSize:12}}>{getAN(t.account_id)}</td>
-                            <td style={{color:"var(--muted2)",fontSize:12}}>{fmtDate(t.date)}</td>
-                            <td>
-                              {/* item 6: consignado NÃO tem edição de valor */}
-                              {isConsig
-                                ? <span className="badge b-e">{fmt(t.amount)}</span>
-                                : editAmtId===t.id
-                                  ? <div className="amt-edit"><input className="amt-input" type="number" value={editAmtVal} onChange={e=>setEditAmtVal(e.target.value)} autoFocus /><button className="btn bp bsm" onClick={async()=>{await updateTransactionAmount(t.id,Number(editAmtVal));setEditAmtId(null);loadAll()}}>✓</button><button className="btn bs bsm" onClick={()=>setEditAmtId(null)}>✕</button></div>
-                                  : <div style={{display:"flex",alignItems:"center",gap:5}}><span className="badge b-e">{fmt(t.amount)}</span><button className="be" title="Editar valor" onClick={()=>{setEditAmtId(t.id);setEditAmtVal(String(t.amount))}}>✏️</button></div>
-                              }
-                            </td>
-                            <td>
-                              {/* item 6: consignado mostra "programado", sem botão de check nem apagar */}
-                              {isConsig
-                                ? <span className="badge b-prog">📋 programado</span>
-                                : t.installment_id
-                                  ? <button className="pb" onClick={async()=>{await markTransactionPaid(t.id,!t.paid);loadAll()}}>{t.paid?"✅":"⏳"}</button>
-                                  : <span className="badge b-ok">✓ pago</span>
-                              }
-                            </td>
-                            {/* item 6: consignado NÃO tem botão apagar individual */}
-                            <td>{!isConsig&&<button className="bd" onClick={()=>{deleteTransaction(t.id);loadAll()}}>🗑</button>}</td>
-                          </tr>
-                        )
-                      })}</tbody></table>
-                  )}
-                  {activeTab==="income"&&(
-                    income.length===0
-                      ?<div style={{color:"var(--muted2)",fontSize:13,textAlign:"center",padding:"22px 0"}}>Nenhuma receita em {periodLabel}.</div>
-                      :<table><thead><tr><th>Descrição</th><th>Categoria</th><th>Conta</th><th>Data</th><th>Valor</th><th></th></tr></thead>
-                      <tbody>{income.map(t=>(
-                        <tr key={t.id}><td style={{fontWeight:500}}>{t.description}</td><td style={{color:"var(--muted2)",fontSize:12}}>{getCN(t.category_id)}</td><td style={{color:"var(--muted2)",fontSize:12}}>{getAN(t.account_id)}</td><td style={{color:"var(--muted2)",fontSize:12}}>{fmtDate(t.date)}</td><td><span className="badge b-i">{fmt(t.amount)}</span></td><td><button className="bd" onClick={()=>{deleteTransaction(t.id);loadAll()}}>🗑</button></td></tr>
-                      ))}</tbody></table>
-                  )}
-                </div>
-              </div>
-
-              {/* SMALL RIGHT: pizza tipos + por conta */}
-              <div style={{display:"flex",flexDirection:"column",gap:16}}>
-                {typePieData.length>0&&(
-                  <div className="panel">
-                    <div className="ph"><div><div className="pt">Por tipo</div><div className="ps">despesas · {periodLabel}</div></div></div>
-                    <PieChart width={270} height={210}>
-                      <Pie data={typePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={78} innerRadius={32}>{typePieData.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie>
-                      <Tooltip formatter={(v:any)=>fmt(v)} contentStyle={{background:"#0f0f1a",border:"1px solid #ffffff15",borderRadius:10,fontSize:12}}/>
-                      <Legend iconType="circle" iconSize={7} wrapperStyle={{fontSize:12}}/>
-                    </PieChart>
-                  </div>
-                )}
-                {accSummary.length>0&&(
-                  <div className="panel">
-                    <div className="ph"><div><div className="pt">Por conta</div><div className="ps">{periodLabel}</div></div></div>
-                    {accSummary.map((a:any)=>(
-                      <div key={a.name} className="acc-item">
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                          <span style={{fontWeight:600,fontSize:14}}>{a.name}</span>
-                          <span style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:15,fontWeight:700,color:a.balance>=0?"var(--green)":"var(--red)"}}>{fmt(a.balance)}</span>
-                        </div>
-                        <div style={{display:"flex",gap:14}}><span style={{fontSize:12,color:"var(--muted2)"}}>↑ {fmt(a.income)}</span><span style={{fontSize:12,color:"var(--muted2)"}}>↓ {fmt(a.expense)}</span></div>
-                      </div>
-                    ))}
-                  </div>
+                ):(
+                  /* modo anual ou sem fixas: mostrar nada no lado direito */
+                  <div/>
                 )}
               </div>
             </div>
@@ -715,33 +705,24 @@ export default function App() {
                     </div>
                   </div>
                   {debtType==="emprestimo_consignado"&&<div className="hint-green">📋 Parcelas já vencidas serão marcadas como pagas automaticamente. Futuras ficam como "programado".</div>}
-
                   <form onSubmit={handleDebtSubmit} style={{width:"100%",display:"flex",flexWrap:"wrap",gap:8}}>
-                    <input style={{flex:2,minWidth:140}} placeholder="Descrição" value={inst.description} onChange={e=>setInst({...inst,description:e.target.value})} />
-                    <input style={{flex:1}} type="number" placeholder="Valor total" value={inst.total_amount} onChange={e=>setInst({...inst,total_amount:e.target.value})} />
-                    <input style={{flex:1,minWidth:80}} type="number" placeholder="Nº parcelas" min="1" value={inst.total_installments} onChange={e=>setInst({...inst,total_installments:e.target.value})} />
-                    <input type="date" value={inst.start_date} onChange={e=>setInst({...inst,start_date:e.target.value})} />
-
-                    {/* item 5: opção de valor manual (juros) */}
+                    <input style={{flex:2,minWidth:140}} placeholder="Descrição" value={inst.description} onChange={e=>setInst({...inst,description:e.target.value})}/>
+                    <input style={{flex:1}} type="number" placeholder="Valor total" value={inst.total_amount} onChange={e=>setInst({...inst,total_amount:e.target.value})}/>
+                    <input style={{flex:1,minWidth:80}} type="number" placeholder="Nº parcelas" min="1" value={inst.total_installments} onChange={e=>setInst({...inst,total_installments:e.target.value})}/>
+                    <input type="date" value={inst.start_date} onChange={e=>setInst({...inst,start_date:e.target.value})}/>
                     <div style={{width:"100%",background:"var(--s1)",borderRadius:10,padding:"10px 14px",display:"flex",flexDirection:"column",gap:10}}>
                       <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        <input type="checkbox" id="manual-chk" checked={useManualMonthly} onChange={e=>setUseManualMonthly(e.target.checked)} style={{width:"auto",cursor:"pointer"}} />
-                        <label htmlFor="manual-chk" style={{fontSize:13,cursor:"pointer",fontWeight:500}}>Informar valor da parcela manualmente (com juros)</label>
+                        <input type="checkbox" id="manual-chk" checked={useManualMonthly} onChange={e=>setUseManualMonthly(e.target.checked)} style={{width:"auto",cursor:"pointer"}}/>
+                        <label htmlFor="manual-chk" style={{fontSize:13,cursor:"pointer",fontWeight:500}}>Informar valor da parcela manualmente (com juros do banco)</label>
                       </div>
-                      {useManualMonthly&&(
-                        <div>
-                          <span className="fl">Valor mensal real (o que você paga de fato)</span>
-                          <input type="number" placeholder="Ex: 350,00" value={inst.monthly_amount} onChange={e=>setInst({...inst,monthly_amount:e.target.value})} />
-                        </div>
-                      )}
+                      {useManualMonthly&&<div><span className="fl">Valor mensal real</span><input type="number" placeholder="Ex: 350,00" value={inst.monthly_amount} onChange={e=>setInst({...inst,monthly_amount:e.target.value})}/></div>}
                       {instPreview&&(
                         <div style={{fontSize:12,color:"var(--muted2)"}}>
-                          Cálculo automático: <strong style={{color:"var(--text)"}}>{fmt(instPreview.auto)}/mês</strong>
-                          {instPreview.manual&&<span> → valor informado: <strong style={{color:"var(--yellow)"}}>{fmt(instPreview.manual)}/mês</strong>{instPreview.diff&&instPreview.diff>0&&<span style={{color:"var(--red)",marginLeft:4}}>(+{fmt(instPreview.diff)} de juros)</span>}</span>}
+                          Automático: <strong style={{color:"var(--text)"}}>{fmt(instPreview.auto)}/mês</strong>
+                          {instPreview.manual&&<span> → Manual: <strong style={{color:"var(--yellow)"}}>{fmt(instPreview.manual)}/mês</strong>{instPreview.diff&&instPreview.diff>0&&<span style={{color:"var(--red)",marginLeft:4}}>(+{fmt(instPreview.diff)} juros)</span>}</span>}
                         </div>
                       )}
                     </div>
-
                     <select value={instCatId} onChange={e=>setInstCatId(e.target.value)}><option value="">Categoria</option>{categories.filter(c=>c.type==="expense").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
                     <select value={instAccId} onChange={e=>setInstAccId(e.target.value)}><option value="">Conta</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>
                     <button type="submit" disabled={submitting} className="btn bp" style={{opacity:submitting?.6:1}}>{submitting?"Criando...":`✅ Criar ${DEBT_CFG[debtType].label}`}</button>
@@ -749,7 +730,6 @@ export default function App() {
                 </div>
               </div>
             )}
-
             <div className="df">
               {[["todos","📋","Todos"],["parcelamento","💳","Parcelamentos"],["financiamento","🏦","Financiamentos"],["emprestimo_pessoal","🤝","Emp. Pessoal"],["emprestimo_consignado","📋","Consignado"]].map(([k,ic,lb])=>{
                 const cnt=k==="todos"?installments.filter(i=>i.pending_installments>0).length:installments.filter(i=>i.debt_type===k&&i.pending_installments>0).length
