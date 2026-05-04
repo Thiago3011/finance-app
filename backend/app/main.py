@@ -1,15 +1,17 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from app.database import Base, engine, SessionLocal
 from app.models.category import Category
 from app.models.account import Account
-from app.models import transaction
-from app.models import recurring
+from app.models import transaction, installment, recurring
+
 from app.routes.transactions import router as transactions_router
 from app.routes.categories import router as categories_router
 from app.routes.accounts import router as accounts_router
 from app.routes.installment import router as installment_router
 from app.routes.recurring import router as recurring_router
-from fastapi.middleware.cors import CORSMiddleware
+from app.routes.amortization import router as amortization_router
 
 app = FastAPI()
 
@@ -27,38 +29,23 @@ Base.metadata.create_all(bind=engine)
 def seed_categories():
     db = SessionLocal()
     if db.query(Category).count() > 0:
-        db.close()
-        return
-    categories = [
-        Category(name="Salário", type="income"),
-        Category(name="Freelance", type="income"),
-        Category(name="Alimentação", type="expense"),
-        Category(name="Aluguel", type="expense"),
-        Category(name="Transporte", type="expense"),
-        Category(name="Lazer", type="expense"),
-        Category(name="Saúde", type="expense"),
-        Category(name="Educação", type="expense"),
+        db.close(); return
+    db.add_all([
+        Category(name="Salário", type="income"), Category(name="Freelance", type="income"),
+        Category(name="Alimentação", type="expense"), Category(name="Aluguel", type="expense"),
+        Category(name="Transporte", type="expense"), Category(name="Lazer", type="expense"),
+        Category(name="Saúde", type="expense"), Category(name="Educação", type="expense"),
         Category(name="Serviços", type="expense"),
-    ]
-    db.add_all(categories)
-    db.commit()
-    db.close()
+    ]); db.commit(); db.close()
 
 
 def seed_accounts():
     db = SessionLocal()
     if db.query(Account).count() > 0:
-        db.close()
-        return
-    accounts = [
-        Account(name="Nubank"),
-        Account(name="Bradesco"),
-        Account(name="Carteira"),
-        Account(name="Inter"),
-    ]
-    db.add_all(accounts)
-    db.commit()
-    db.close()
+        db.close(); return
+    db.add_all([Account(name="Nubank"), Account(name="Bradesco"),
+                Account(name="Carteira"), Account(name="Inter")])
+    db.commit(); db.close()
 
 
 seed_categories()
@@ -69,6 +56,7 @@ app.include_router(categories_router)
 app.include_router(accounts_router)
 app.include_router(installment_router)
 app.include_router(recurring_router)
+app.include_router(amortization_router)
 
 
 @app.get("/")
