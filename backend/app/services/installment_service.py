@@ -16,8 +16,6 @@ def create_installment(db, data):
         start_date = data.start_date
 
     debt_type = getattr(data, "debt_type", "parcelamento")
-
-    # Consignado: parcelas já nascem pagas (desconto em folha automático)
     is_consignado = debt_type == "emprestimo_consignado"
 
     installment = Installment(
@@ -30,19 +28,16 @@ def create_installment(db, data):
     db.commit()
     db.refresh(installment)
 
-    value_per_installment = round(data.total_amount / data.total_installments, 2)
+    value_per = round(data.total_amount / data.total_installments, 2)
     today = date.today()
 
     transactions = []
     for i in range(data.total_installments):
         transaction_date = start_date + relativedelta(months=i)
-
-        # Consignado: marca pago se a data já passou ou é hoje
         paid = is_consignado and transaction_date <= today
-
-        transaction = Transaction(
+        transactions.append(Transaction(
             description=f"{data.description} ({i+1}/{data.total_installments})",
-            amount=value_per_installment,
+            amount=value_per,
             type="expense",
             category_id=data.category_id,
             account_id=data.account_id,
@@ -50,8 +45,7 @@ def create_installment(db, data):
             installment_number=i + 1,
             date=transaction_date,
             paid=paid,
-        )
-        transactions.append(transaction)
+        ))
 
     db.add_all(transactions)
     db.commit()
@@ -59,14 +53,20 @@ def create_installment(db, data):
 
 
 def create_installment_custom(db, data):
-    """Parcelas com valores e datas personalizados"""
+    """
+    Cria parcelamento com valores e datas individuais por parcela.
+    ✅ Fix item 3: respeita total_amount_override se fornecido,
+    caso contrário usa a soma real das parcelas.
+    """
     if not data.installments:
         raise ValueError("Adicione pelo menos uma parcela")
 
     debt_type = getattr(data, "debt_type", "parcelamento")
     is_consignado = debt_type == "emprestimo_consignado"
-    total_amount = sum(item.amount for item in data.installments)
     today = date.today()
+
+    # ✅ Usa o total informado pelo usuário se existir, senão soma as parcelas
+    total_amount = getattr(data, "total_amount_override", None) or sum(item.amount for item in data.installments)
 
     installment = Installment(
         description=data.description,
@@ -87,7 +87,7 @@ def create_installment_custom(db, data):
 
         paid = is_consignado and transaction_date <= today
 
-        transaction = Transaction(
+        transactions.append(Transaction(
             description=f"{data.description} ({i+1}/{len(data.installments)})",
             amount=item.amount,
             type="expense",
@@ -97,8 +97,7 @@ def create_installment_custom(db, data):
             installment_number=i + 1,
             date=transaction_date,
             paid=paid,
-        )
-        transactions.append(transaction)
+        ))
 
     db.add_all(transactions)
     db.commit()
